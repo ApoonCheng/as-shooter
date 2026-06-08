@@ -17,6 +17,11 @@ body {
   overflow: hidden;
   background: radial-gradient(circle at 50% 0%, #241a3a, var(--bg));
   color: var(--ink);
+  /* 關閉手機長按選取／拷貝翻譯選單 */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .page {
@@ -96,6 +101,7 @@ button {
 .mute-line { background: transparent; color: #c9bce0; margin-top: 10px; font-size: 0.85rem; }
 
 .submit-box { display: flex; gap: 8px; margin: 8px 0 6px; }
+.submit-box input { user-select: text; -webkit-user-select: text; }
 .submit-box input {
   background: var(--panel); border: 2px solid #4a3a6a; border-radius: 10px;
   color: #fff; padding: 11px 14px; font-size: 1rem; font-family: inherit; min-width: 0;

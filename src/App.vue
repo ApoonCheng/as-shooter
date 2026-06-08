@@ -122,10 +122,13 @@ function checkOrient() {
   rotateHint.value = mobile && window.innerHeight > window.innerWidth
 }
 
+const blockContextMenu = (e) => e.preventDefault()
+
 onMounted(() => {
   checkOrient()
   window.addEventListener('resize', checkOrient)
   window.addEventListener('orientationchange', checkOrient)
+  window.addEventListener('contextmenu', blockContextMenu)
 })
 
 onUnmounted(() => {
@@ -134,6 +137,7 @@ onUnmounted(() => {
   if (introAudio) introAudio.pause()
   window.removeEventListener('resize', checkOrient)
   window.removeEventListener('orientationchange', checkOrient)
+  window.removeEventListener('contextmenu', blockContextMenu)
 })
 </script>
 

@@ -71,11 +71,11 @@ export function createGame(canvas, callbacks = {}) {
     else { x = -30; y = Math.random() * H }
 
     if (type === 'boss') {
-      zombies.push({ x, y, r: 42, speed: 38 + wave, hp: 700 + wave * 120, hpMax: 700 + wave * 120, dmg: 28, value: 250, boss: true, emoji: '👹' })
+      zombies.push({ x, y, r: 42, speed: 38 + wave, hp: 700 + wave * 120, hpMax: 700 + wave * 120, dmg: 45, value: 250, boss: true, emoji: '👹' })
     } else if (type === 'fast') {
-      zombies.push({ x, y, r: 13, speed: 110 + wave * 4, hp: 30 + wave * 5, hpMax: 30 + wave * 5, dmg: 10, value: 15, emoji: '🧟‍♀️' })
+      zombies.push({ x, y, r: 13, speed: 110 + wave * 4, hp: 30 + wave * 5, hpMax: 30 + wave * 5, dmg: 26, value: 15, emoji: '🧟‍♀️' })
     } else {
-      zombies.push({ x, y, r: 17, speed: 52 + wave * 3, hp: 50 + wave * 9, hpMax: 50 + wave * 9, dmg: 12, value: 10, emoji: '🧟' })
+      zombies.push({ x, y, r: 17, speed: 52 + wave * 3, hp: 50 + wave * 9, hpMax: 50 + wave * 9, dmg: 22, value: 10, emoji: '🧟' })
     }
   }
 

@@ -23,7 +23,7 @@ export function createGame(canvas, callbacks = {}) {
   let score, running, raf, lastTime, hurtSoundTimer
 
   function reset() {
-    player = { x: W / 2, y: H / 2, r: 18, speed: 230, hp: 100, hpMax: 100, angle: 0, cd: 0 }
+    player = { x: W / 2, y: H / 2, r: 13, speed: 230, hp: 100, hpMax: 100, angle: 0, cd: 0 }
     bullets = []
     zombies = []
     particles = []
@@ -244,7 +244,7 @@ export function createGame(canvas, callbacks = {}) {
 
     // 狗柏 扛著炫砲
     if (dogboOk) {
-      const h = 108
+      const h = 84
       const w = h * (dogbo.width / dogbo.height)
       const faceRight = mouse.x >= player.x
       ctx.save()

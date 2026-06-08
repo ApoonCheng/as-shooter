@@ -63,6 +63,11 @@ function backToMenu() {
   phase.value = 'menu'
 }
 
+function openBoard() {
+  phase.value = 'board'
+  fetchTop()
+}
+
 function toggleMute() {
   muted.value = !muted.value
   game?.setMuted(muted.value)
@@ -165,7 +170,24 @@ onUnmounted(() => {
           <div><b>按住左鍵</b> 射擊</div>
         </div>
         <button class="big" @click="startGame">開始遊戲</button>
+        <button v-if="hasLeaderboard" class="big alt" @click="openBoard">🏆 排行榜</button>
         <button class="mute-line" @click="toggleMute">{{ muted ? '🔇 音效關' : '🔊 音效開' }}</button>
+      </div>
+
+      <!-- 排行榜畫面 -->
+      <div v-if="phase === 'board'" class="overlay">
+        <h1>🏆 排行榜</h1>
+        <div v-if="top.length" class="board">
+          <ol>
+            <li v-for="(r, i) in top" :key="r.id">
+              <span class="rk">{{ i + 1 }}</span>
+              <span class="nm">{{ r.name }}</span>
+              <span class="sc">{{ r.score }}</span>
+            </li>
+          </ol>
+        </div>
+        <p v-else class="sub">{{ boardError || '還沒有人上榜，快去當第一名！' }}</p>
+        <button class="big" @click="phase = 'menu'">返回</button>
       </div>
 
       <!-- 結束畫面 -->

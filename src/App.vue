@@ -38,6 +38,7 @@ function onWaveStart(n, isBoss) {
 }
 
 function onGameOver({ score: s, wave: w }) {
+  game?.stop() // 停掉遊戲輸入監聽，避免干擾結束畫面操作
   finalScore.value = s
   finalWave.value = w
   phase.value = 'over'
@@ -91,12 +92,17 @@ async function submitScore() {
   localStorage.setItem('as-name', name)
   submitting.value = true
   boardError.value = ''
-  const { error } = await supabase
-    .from('shooter_scores')
-    .insert({ name, score: finalScore.value, wave: finalWave.value })
-  if (error) boardError.value = error.message
-  else { submitted.value = true; await fetchTop() }
-  submitting.value = false
+  try {
+    const { error } = await supabase
+      .from('shooter_scores')
+      .insert({ name, score: finalScore.value, wave: finalWave.value })
+    if (error) boardError.value = '上傳失敗：' + error.message
+    else { submitted.value = true; await fetchTop() }
+  } catch (e) {
+    boardError.value = '上傳失敗：' + (e.message || e)
+  } finally {
+    submitting.value = false
+  }
 }
 
 // 每次開始遊戲 / 再玩一次 → 播放 2.9 秒音效
@@ -218,12 +224,12 @@ onUnmounted(() => {
         <div class="final">{{ finalScore }}</div>
         <p class="sub">撐到第 {{ finalWave }} 波 · 得分 {{ finalScore }}</p>
 
-        <div v-if="hasLeaderboard && !submitted" class="submit-box">
-          <input v-model="playerName" maxlength="12" placeholder="輸入暱稱上榜" />
-          <button class="big small" :disabled="submitting" @click="submitScore">
+        <form v-if="hasLeaderboard && !submitted" class="submit-box" @submit.prevent="submitScore">
+          <input v-model="playerName" maxlength="12" placeholder="輸入暱稱上榜" enterkeyhint="send" />
+          <button type="submit" class="big small" :disabled="submitting">
             {{ submitting ? '上傳中…' : '上傳' }}
           </button>
-        </div>
+        </form>
         <p v-if="boardError" class="err">{{ boardError }}</p>
 
         <div v-if="submitted || (hasLeaderboard && top.length)" class="board">

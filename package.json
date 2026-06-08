@@ -1,0 +1,21 @@
+{
+  "name": "as-shooter",
+  "version": "1.0.0",
+  "description": "美秀主題殭屍射擊遊戲",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.107.0",
+    "vue": "^3.4.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.0",
+    "sharp": "^0.34.5",
+    "vite": "^5.4.0"
+  }
+}

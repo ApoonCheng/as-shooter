@@ -1,0 +1,108 @@
+:root {
+  --bg: #14101f;
+  --panel: #1f1830;
+  --purple: #a855f7;
+  --pink: #ff4d6d;
+  --yellow: #ffd23f;
+  --ink: #f3e9ff;
+  font-family: "Microsoft JhengHei", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(circle at 50% 0%, #241a3a, var(--bg));
+  color: var(--ink);
+  padding: 16px;
+}
+
+.page { width: 100%; max-width: 1000px; margin: 0 auto; }
+
+.game-box {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  background: #16111f;
+  border: 3px solid var(--purple);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 0 40px rgba(168, 85, 247, 0.35);
+}
+
+canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+
+/* HUD */
+.hud {
+  position: absolute; top: 0; left: 0; right: 0;
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 14px; pointer-events: none;
+}
+.hud-left { display: flex; align-items: center; gap: 8px; }
+.hp-bar { width: 160px; height: 14px; background: #00000066; border: 2px solid #fff3; border-radius: 999px; overflow: hidden; }
+.hp-fill { height: 100%; background: linear-gradient(90deg, var(--pink), var(--yellow)); transition: width 0.1s; }
+.hud-hp { font-weight: 800; font-size: 0.9rem; }
+.hud-right { display: flex; align-items: center; gap: 14px; font-weight: 800; }
+.hud-score { font-size: 1.4rem; color: var(--yellow); }
+.mute { pointer-events: auto; background: #fff2; border: none; border-radius: 8px; padding: 4px 8px; cursor: pointer; font-size: 1rem; }
+
+.banner {
+  position: absolute; top: 42%; left: 0; right: 0; text-align: center;
+  font-size: 2rem; font-weight: 900; color: var(--yellow);
+  text-shadow: 0 2px 12px #000;
+}
+.pop-enter-active, .pop-leave-active { transition: opacity 0.3s, transform 0.3s; }
+.pop-enter-from, .pop-leave-to { opacity: 0; transform: scale(0.8); }
+
+/* Overlay（選單 / 結束） */
+.overlay {
+  position: absolute; inset: 0;
+  background: rgba(20, 16, 31, 0.92);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; padding: 24px; gap: 6px; overflow-y: auto;
+}
+.menu-logo { width: 220px; max-width: 60%; height: auto; margin-bottom: 6px; filter: drop-shadow(0 4px 10px rgba(168, 85, 247, 0.5)); }
+.overlay h1 { font-size: 2.8rem; margin: 0 0 10px; font-weight: 900; }
+.sub { color: #c9bce0; font-size: 1.1rem; margin: 0 0 18px; max-width: 480px; line-height: 1.7; }
+.controls { display: flex; gap: 22px; flex-wrap: wrap; justify-content: center; margin-bottom: 24px; color: #c9bce0; font-size: 1.05rem; }
+.controls b { color: var(--yellow); }
+
+.final { font-size: 4rem; font-weight: 900; color: var(--yellow); line-height: 1; }
+
+button {
+  font-family: inherit; cursor: pointer; font-weight: 800;
+  border: none; border-radius: 12px;
+}
+.big {
+  background: var(--pink); color: #fff; padding: 16px 36px; font-size: 1.25rem;
+  box-shadow: 0 4px 0 #b3203f; transition: transform 0.05s, box-shadow 0.05s;
+}
+.big:active { transform: translateY(4px); box-shadow: none; }
+.big.alt { background: var(--purple); box-shadow: 0 4px 0 #7a30c0; }
+.big.small { padding: 12px 18px; }
+.btn-row { display: flex; gap: 12px; margin-top: 14px; }
+.mute-line { background: transparent; color: #c9bce0; margin-top: 10px; font-size: 0.85rem; }
+
+.submit-box { display: flex; gap: 8px; margin: 8px 0 6px; }
+.submit-box input {
+  background: var(--panel); border: 2px solid #4a3a6a; border-radius: 10px;
+  color: #fff; padding: 11px 14px; font-size: 1rem; font-family: inherit; min-width: 0;
+}
+.err { color: var(--pink); font-size: 0.85rem; }
+
+.board { width: 100%; max-width: 320px; margin: 8px 0; }
+.board h3 { margin: 6px 0; }
+.board ol { list-style: none; padding: 0; margin: 0; max-height: 180px; overflow-y: auto; }
+.board li {
+  display: flex; align-items: center; gap: 10px; padding: 7px 8px;
+  border-bottom: 1px solid #3a2e55; font-weight: 700; font-size: 0.92rem;
+}
+.board li.me { background: var(--yellow); color: #1a1a1a; border-radius: 8px; border-bottom-color: transparent; }
+.board .rk { width: 24px; text-align: center; color: var(--pink); font-weight: 900; }
+.board li.me .rk { color: #b3203f; }
+.board .nm { flex: 1; text-align: left; }
+.board .sc { color: var(--yellow); }
+.board li.me .sc { color: #b3203f; }
+
+.footer { text-align: center; color: #6b5b80; font-size: 0.8rem; margin-top: 14px; }

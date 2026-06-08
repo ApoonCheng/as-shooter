@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { createGame } from './game'
 import { supabase } from './lib/supabase'
 
@@ -115,10 +115,25 @@ function playIntro() {
   }, 2900)
 }
 
+// 手機直向 → 提示橫放（瀏覽器無法強制旋轉裝置）
+const rotateHint = ref(false)
+function checkOrient() {
+  const mobile = window.matchMedia('(pointer: coarse)').matches
+  rotateHint.value = mobile && window.innerHeight > window.innerWidth
+}
+
+onMounted(() => {
+  checkOrient()
+  window.addEventListener('resize', checkOrient)
+  window.addEventListener('orientationchange', checkOrient)
+})
+
 onUnmounted(() => {
   game?.stop()
   clearTimeout(introTimer)
   if (introAudio) introAudio.pause()
+  window.removeEventListener('resize', checkOrient)
+  window.removeEventListener('orientationchange', checkOrient)
 })
 </script>
 
@@ -174,6 +189,7 @@ onUnmounted(() => {
         <button class="big" @click="startGame">開始遊戲</button>
         <button v-if="hasLeaderboard" class="big alt" @click="openBoard">🏆 排行榜</button>
         <button class="mute-line" @click="toggleMute">{{ muted ? '🔇 音效關' : '🔊 音效開' }}</button>
+        <p class="footer">非官方粉絲應援 · 純為好玩 ❤️</p>
       </div>
 
       <!-- 排行榜畫面 -->
@@ -223,6 +239,12 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
-    <p class="footer">非官方粉絲應援 · 純為好玩 ❤️</p>
+    <!-- 手機直向提示 -->
+    <div v-if="rotateHint" class="rotate-overlay">
+      <div class="rotate-inner">
+        <div class="rotate-icon">🔄</div>
+        <p>請將手機橫放<br />以獲得最佳遊玩體驗</p>
+      </div>
+    </div>
   </div>
 </template>

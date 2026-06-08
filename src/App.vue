@@ -101,22 +101,23 @@ async function submitScore() {
 
 // 每次開始遊戲 / 再玩一次 → 播放 2.9 秒音效
 let introAudio = null
+let introTimer = null
 function playIntro() {
   if (muted.value) return
-  if (introAudio) introAudio.pause()
-  introAudio = new Audio('/intro.webm')
-  introAudio
-    .play()
-    .then(() => {
-      setTimeout(() => {
-        if (introAudio) { introAudio.pause(); introAudio.currentTime = 0 }
-      }, 2900)
-    })
-    .catch(() => {}) // 沒有音檔或被擋就略過
+  if (!introAudio) introAudio = new Audio('/intro.webm')
+  clearTimeout(introTimer)
+  introAudio.pause()
+  introAudio.currentTime = 0
+  introAudio.play().catch(() => {}) // 沒有音檔或被擋就略過
+  introTimer = setTimeout(() => {
+    introAudio.pause()
+    introAudio.currentTime = 0
+  }, 2900)
 }
 
 onUnmounted(() => {
   game?.stop()
+  clearTimeout(introTimer)
   if (introAudio) introAudio.pause()
 })
 </script>

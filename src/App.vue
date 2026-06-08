@@ -185,7 +185,7 @@ onUnmounted(() => {
           <div><b>滑鼠</b> 瞄準</div>
           <div><b>按住左鍵</b> 射擊</div>
         </div>
-        <p class="sub" style="margin-top:-8px">📱 手機：左半邊拖曳移動，右半邊拖曳瞄準並自動射擊</p>
+        <p class="sub" style="margin-top:-8px">📱 手機：左下搖桿移動，右下搖桿瞄準並自動射擊</p>
         <button class="big" @click="startGame">開始遊戲</button>
         <button v-if="hasLeaderboard" class="big alt" @click="openBoard">🏆 排行榜</button>
         <button class="mute-line" @click="toggleMute">{{ muted ? '🔇 音效關' : '🔊 音效開' }}</button>

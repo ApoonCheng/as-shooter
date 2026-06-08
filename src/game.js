@@ -16,10 +16,20 @@ export function createGame(canvas, callbacks = {}) {
 
   const keys = {}
   const mouse = { x: W / 2, y: H / 2, down: false }
-  // 手機虛擬搖桿：左=移動、右=瞄準射擊
-  const joyL = { id: null, ox: 0, oy: 0, x: 0, y: 0 }
-  const joyR = { id: null, ox: 0, oy: 0, x: 0, y: 0, ang: 0 }
-  const JOY_R = 42 // 搖桿最大半徑
+  // 手機虛擬搖桿（MOBA 風格：左下移動、右下瞄準射擊，固定可見）
+  const isTouch = window.matchMedia('(pointer: coarse)').matches
+  const JOY_R = 70
+  const baseL = { cx: 0, cy: 0, r: JOY_R }
+  const baseR = { cx: 0, cy: 0, r: JOY_R }
+  const joyL = { id: null, kx: 0, ky: 0 } // 旋鈕相對底座的位移
+  const joyR = { id: null, kx: 0, ky: 0 }
+
+  function setKnob(joy, base, p) {
+    let dx = p.x - base.cx, dy = p.y - base.cy
+    const m = Math.hypot(dx, dy)
+    if (m > base.r) { dx = (dx / m) * base.r; dy = (dy / m) * base.r }
+    joy.kx = dx; joy.ky = dy
+  }
 
   let player, bullets, zombies, particles
   let wave, spawnQueue, spawnTimer, spawnInterval
@@ -28,6 +38,11 @@ export function createGame(canvas, callbacks = {}) {
 
   function reset() {
     player = { x: W / 2, y: H / 2, r: 13, speed: 230, hp: 100, hpMax: 100, angle: 0, cd: 0 }
+    // 固定搖桿底座（左下 / 右下）
+    baseL.cx = 100; baseL.cy = H - 100
+    baseR.cx = W - 100; baseR.cy = H - 100
+    joyL.id = null; joyL.kx = 0; joyL.ky = 0
+    joyR.id = null; joyR.kx = 0; joyR.ky = 0
     bullets = []
     zombies = []
     particles = []
@@ -113,8 +128,8 @@ export function createGame(canvas, callbacks = {}) {
     let dx = 0, dy = 0, factor = 1
     if (joyL.id !== null) {
       // 觸控搖桿（類比）
-      dx = joyL.x - joyL.ox
-      dy = joyL.y - joyL.oy
+      dx = joyL.kx
+      dy = joyL.ky
       const m = Math.hypot(dx, dy)
       if (m < 8) { dx = dy = 0 } else { factor = Math.min(1, m / JOY_R) }
     } else {
@@ -134,8 +149,9 @@ export function createGame(canvas, callbacks = {}) {
     // ---- 瞄準 + 射擊 ----
     player.cd -= dt
     if (joyR.id !== null) {
-      player.angle = joyR.ang
-      fire() // 右搖桿啟用時持續射擊
+      const m = Math.hypot(joyR.kx, joyR.ky)
+      if (m > 10) player.angle = Math.atan2(joyR.ky, joyR.kx)
+      fire() // 右搖桿按著就持續射擊
     } else {
       player.angle = Math.atan2(mouse.y - player.y, mouse.x - player.x)
       if (mouse.down) fire()
@@ -279,22 +295,29 @@ export function createGame(canvas, callbacks = {}) {
       ctx.restore()
     }
 
-    // 手機虛擬搖桿
-    if (joyL.id !== null) drawStick(joyL)
-    if (joyR.id !== null) drawStick(joyR)
+    // 手機固定搖桿（MOBA 風格，始終顯示）
+    if (isTouch) {
+      drawJoyBase(baseL, joyL, '🕹️', '#a855f7')
+      drawJoyBase(baseR, joyR, '🎯', '#ff4d6d')
+    }
   }
 
-  function drawStick(j) {
-    ctx.globalAlpha = 0.22
+  function drawJoyBase(base, joy, icon, knobColor) {
+    // 底座
+    ctx.globalAlpha = 0.15
     ctx.fillStyle = '#fff'
-    ctx.beginPath(); ctx.arc(j.ox, j.oy, JOY_R, 0, Math.PI * 2); ctx.fill()
-    ctx.globalAlpha = 0.5
-    const dx = j.x - j.ox, dy = j.y - j.oy, m = Math.hypot(dx, dy)
-    const r = Math.min(JOY_R, m)
-    const a = Math.atan2(dy, dx)
-    const kx = m > 0 ? j.ox + Math.cos(a) * r : j.ox
-    const ky = m > 0 ? j.oy + Math.sin(a) * r : j.oy
-    ctx.beginPath(); ctx.arc(kx, ky, 20, 0, Math.PI * 2); ctx.fill()
+    ctx.beginPath(); ctx.arc(base.cx, base.cy, base.r, 0, Math.PI * 2); ctx.fill()
+    ctx.globalAlpha = 0.35
+    ctx.lineWidth = 2; ctx.strokeStyle = '#fff'
+    ctx.beginPath(); ctx.arc(base.cx, base.cy, base.r, 0, Math.PI * 2); ctx.stroke()
+    // 圖示
+    ctx.globalAlpha = 0.6
+    ctx.font = '24px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText(icon, base.cx, base.cy)
+    // 旋鈕
+    ctx.globalAlpha = 0.85
+    ctx.fillStyle = knobColor
+    ctx.beginPath(); ctx.arc(base.cx + joy.kx, base.cy + joy.ky, 30, 0, Math.PI * 2); ctx.fill()
     ctx.globalAlpha = 1
   }
 
@@ -395,24 +418,21 @@ export function createGame(canvas, callbacks = {}) {
   const onPointerDown = (e) => {
     const p = canvasPos(e)
     if (e.pointerType === 'touch') {
-      if (p.x < W / 2 && joyL.id === null) {
-        joyL.id = e.pointerId; joyL.ox = p.x; joyL.oy = p.y; joyL.x = p.x; joyL.y = p.y
-      } else if (joyR.id === null) {
-        joyR.id = e.pointerId; joyR.ox = p.x; joyR.oy = p.y; joyR.x = p.x; joyR.y = p.y; joyR.ang = player.angle
-      }
+      if (p.x < W / 2 && joyL.id === null) { joyL.id = e.pointerId; setKnob(joyL, baseL, p) }
+      else if (joyR.id === null) { joyR.id = e.pointerId; setKnob(joyR, baseR, p) }
     } else {
       mouse.down = true; mouse.x = p.x; mouse.y = p.y
     }
   }
   const onPointerMove = (e) => {
     const p = canvasPos(e)
-    if (e.pointerId === joyL.id) { joyL.x = p.x; joyL.y = p.y }
-    else if (e.pointerId === joyR.id) { joyR.x = p.x; joyR.y = p.y; joyR.ang = Math.atan2(p.y - joyR.oy, p.x - joyR.ox) }
+    if (e.pointerId === joyL.id) setKnob(joyL, baseL, p)
+    else if (e.pointerId === joyR.id) setKnob(joyR, baseR, p)
     else if (e.pointerType !== 'touch') { mouse.x = p.x; mouse.y = p.y }
   }
   const onPointerUp = (e) => {
-    if (e.pointerId === joyL.id) joyL.id = null
-    else if (e.pointerId === joyR.id) joyR.id = null
+    if (e.pointerId === joyL.id) { joyL.id = null; joyL.kx = 0; joyL.ky = 0 }
+    else if (e.pointerId === joyR.id) { joyR.id = null; joyR.kx = 0; joyR.ky = 0 }
     else mouse.down = false
   }
 

@@ -16,6 +16,10 @@ export function createGame(canvas, callbacks = {}) {
 
   const keys = {}
   const mouse = { x: W / 2, y: H / 2, down: false }
+  // 手機虛擬搖桿：左=移動、右=瞄準射擊
+  const joyL = { id: null, ox: 0, oy: 0, x: 0, y: 0 }
+  const joyR = { id: null, ox: 0, oy: 0, x: 0, y: 0, ang: 0 }
+  const JOY_R = 42 // 搖桿最大半徑
 
   let player, bullets, zombies, particles
   let wave, spawnQueue, spawnTimer, spawnInterval
@@ -106,23 +110,36 @@ export function createGame(canvas, callbacks = {}) {
 
   function update(dt) {
     // ---- 玩家移動 ----
-    let dx = 0, dy = 0
-    if (keys['w'] || keys['arrowup']) dy -= 1
-    if (keys['s'] || keys['arrowdown']) dy += 1
-    if (keys['a'] || keys['arrowleft']) dx -= 1
-    if (keys['d'] || keys['arrowright']) dx += 1
+    let dx = 0, dy = 0, factor = 1
+    if (joyL.id !== null) {
+      // 觸控搖桿（類比）
+      dx = joyL.x - joyL.ox
+      dy = joyL.y - joyL.oy
+      const m = Math.hypot(dx, dy)
+      if (m < 8) { dx = dy = 0 } else { factor = Math.min(1, m / JOY_R) }
+    } else {
+      if (keys['w'] || keys['arrowup']) dy -= 1
+      if (keys['s'] || keys['arrowdown']) dy += 1
+      if (keys['a'] || keys['arrowleft']) dx -= 1
+      if (keys['d'] || keys['arrowright']) dx += 1
+    }
     if (dx || dy) {
       const len = Math.hypot(dx, dy)
-      player.x += (dx / len) * player.speed * dt
-      player.y += (dy / len) * player.speed * dt
+      player.x += (dx / len) * player.speed * factor * dt
+      player.y += (dy / len) * player.speed * factor * dt
       player.x = Math.max(player.r, Math.min(W - player.r, player.x))
       player.y = Math.max(player.r, Math.min(H - player.r, player.y))
     }
-    player.angle = Math.atan2(mouse.y - player.y, mouse.x - player.x)
 
-    // ---- 射擊 ----
+    // ---- 瞄準 + 射擊 ----
     player.cd -= dt
-    if (mouse.down) fire()
+    if (joyR.id !== null) {
+      player.angle = joyR.ang
+      fire() // 右搖桿啟用時持續射擊
+    } else {
+      player.angle = Math.atan2(mouse.y - player.y, mouse.x - player.x)
+      if (mouse.down) fire()
+    }
 
     // ---- 子彈 ----
     for (const b of bullets) {
@@ -261,6 +278,24 @@ export function createGame(canvas, callbacks = {}) {
       drawWeapon()
       ctx.restore()
     }
+
+    // 手機虛擬搖桿
+    if (joyL.id !== null) drawStick(joyL)
+    if (joyR.id !== null) drawStick(joyR)
+  }
+
+  function drawStick(j) {
+    ctx.globalAlpha = 0.22
+    ctx.fillStyle = '#fff'
+    ctx.beginPath(); ctx.arc(j.ox, j.oy, JOY_R, 0, Math.PI * 2); ctx.fill()
+    ctx.globalAlpha = 0.5
+    const dx = j.x - j.ox, dy = j.y - j.oy, m = Math.hypot(dx, dy)
+    const r = Math.min(JOY_R, m)
+    const a = Math.atan2(dy, dx)
+    const kx = m > 0 ? j.ox + Math.cos(a) * r : j.ox
+    const ky = m > 0 ? j.oy + Math.sin(a) * r : j.oy
+    ctx.beginPath(); ctx.arc(kx, ky, 20, 0, Math.PI * 2); ctx.fill()
+    ctx.globalAlpha = 1
   }
 
   function drawPlayerCharacter() {
@@ -356,9 +391,30 @@ export function createGame(canvas, callbacks = {}) {
   }
   const onKeyDown = (e) => { keys[e.key.toLowerCase()] = true }
   const onKeyUp = (e) => { keys[e.key.toLowerCase()] = false }
-  const onMove = (e) => { const p = canvasPos(e); mouse.x = p.x; mouse.y = p.y }
-  const onDown = (e) => { mouse.down = true; const p = canvasPos(e); mouse.x = p.x; mouse.y = p.y }
-  const onUp = () => { mouse.down = false }
+
+  const onPointerDown = (e) => {
+    const p = canvasPos(e)
+    if (e.pointerType === 'touch') {
+      if (p.x < W / 2 && joyL.id === null) {
+        joyL.id = e.pointerId; joyL.ox = p.x; joyL.oy = p.y; joyL.x = p.x; joyL.y = p.y
+      } else if (joyR.id === null) {
+        joyR.id = e.pointerId; joyR.ox = p.x; joyR.oy = p.y; joyR.x = p.x; joyR.y = p.y; joyR.ang = player.angle
+      }
+    } else {
+      mouse.down = true; mouse.x = p.x; mouse.y = p.y
+    }
+  }
+  const onPointerMove = (e) => {
+    const p = canvasPos(e)
+    if (e.pointerId === joyL.id) { joyL.x = p.x; joyL.y = p.y }
+    else if (e.pointerId === joyR.id) { joyR.x = p.x; joyR.y = p.y; joyR.ang = Math.atan2(p.y - joyR.oy, p.x - joyR.ox) }
+    else if (e.pointerType !== 'touch') { mouse.x = p.x; mouse.y = p.y }
+  }
+  const onPointerUp = (e) => {
+    if (e.pointerId === joyL.id) joyL.id = null
+    else if (e.pointerId === joyR.id) joyR.id = null
+    else mouse.down = false
+  }
 
   function start() {
     reset()
@@ -366,9 +422,10 @@ export function createGame(canvas, callbacks = {}) {
     lastTime = performance.now()
     window.addEventListener('keydown', onKeyDown)
     window.addEventListener('keyup', onKeyUp)
-    canvas.addEventListener('mousemove', onMove)
-    canvas.addEventListener('mousedown', onDown)
-    window.addEventListener('mouseup', onUp)
+    canvas.addEventListener('pointerdown', onPointerDown)
+    window.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointerup', onPointerUp)
+    window.addEventListener('pointercancel', onPointerUp)
     sound.ensure()
     raf = requestAnimationFrame(loop)
   }
@@ -378,9 +435,10 @@ export function createGame(canvas, callbacks = {}) {
     cancelAnimationFrame(raf)
     window.removeEventListener('keydown', onKeyDown)
     window.removeEventListener('keyup', onKeyUp)
-    canvas.removeEventListener('mousemove', onMove)
-    canvas.removeEventListener('mousedown', onDown)
-    window.removeEventListener('mouseup', onUp)
+    canvas.removeEventListener('pointerdown', onPointerDown)
+    window.removeEventListener('pointermove', onPointerMove)
+    window.removeEventListener('pointerup', onPointerUp)
+    window.removeEventListener('pointercancel', onPointerUp)
   }
 
   function setMuted(m) { sound.muted = m }

@@ -104,26 +104,26 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     else { x = -30; y = Math.random() * H }
     const q = wave * wave
     if (type === 'boss') {
-      const bhp = Math.round(2300 + wave * 440 + q * 20)
+      const bhp = Math.round(2100 + wave * 400 + q * 16)
       zombies.push({ x, y, r: 46, speed: Math.min(135, 60 + wave * 2), hp: bhp, hpMax: bhp, dmg: 85, value: 250, xp: 8, coin: 60, boss: true, kind: 'boss', fireT: 2, emoji: '👹' })
       shake(16)
     } else if (type === 'charger') {
-      const chp = Math.round(110 + wave * 20 + q * 1.1)
+      const chp = Math.round(100 + wave * 18 + q * 0.9)
       zombies.push({ x, y, r: 16, speed: Math.min(165, 100 + wave * 2), hp: chp, hpMax: chp, dmg: 20, value: 25, xp: 2, coin: 5, kind: 'charger', cstate: 'chase', t: 0, emoji: '😡' })
     } else if (type === 'tank') {
-      const thp = Math.round(280 + wave * 60 + q * 4)
+      const thp = Math.round(260 + wave * 52 + q * 3.2)
       zombies.push({ x, y, r: 27, speed: Math.min(160, 48 + wave * 2), hp: thp, hpMax: thp, dmg: 48, value: 40, xp: 3, coin: 6, kind: 'tank', emoji: '🧟‍♂️' })
     } else if (type === 'exploder') {
-      const ehp = Math.round(120 + wave * 26 + q * 1.7)
+      const ehp = Math.round(110 + wave * 22 + q * 1.3)
       zombies.push({ x, y, r: 15, speed: Math.min(215, 85 + wave * 4), hp: ehp, hpMax: ehp, dmg: 28, value: 20, xp: 2, coin: 4, kind: 'exploder', emoji: '🤢' })
     } else if (type === 'spitter') {
-      const shp = Math.round(110 + wave * 20 + q * 1.5)
+      const shp = Math.round(100 + wave * 18 + q * 1.2)
       zombies.push({ x, y, r: 15, speed: Math.min(170, 86 + wave * 2), hp: shp, hpMax: shp, dmg: 18, value: 20, xp: 2, coin: 4, kind: 'spitter', fireT: 1.8, emoji: '🤮' })
     } else if (type === 'fast') {
-      const fhp = Math.round(50 + wave * 14 + q * 1)
+      const fhp = Math.round(45 + wave * 12 + q * 0.8)
       zombies.push({ x, y, r: 13, speed: Math.min(360, 150 + wave * 7), hp: fhp, hpMax: fhp, dmg: 38, value: 15, xp: 1, coin: 3, kind: 'fast', emoji: '🧟‍♀️' })
     } else {
-      const zhp = Math.round(90 + wave * 26 + q * 1.8)
+      const zhp = Math.round(85 + wave * 22 + q * 1.4)
       zombies.push({ x, y, r: 17, speed: Math.min(235, 78 + wave * 6), hp: zhp, hpMax: zhp, dmg: 34, value: 10, xp: 1, coin: 2, kind: 'z', emoji: '🧟' })
     }
   }

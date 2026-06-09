@@ -76,21 +76,21 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   function nextWave() {
     wave++
     const isBoss = wave % 5 === 0
-    spawnInterval = Math.max(0.08, 0.45 - wave * 0.05)
+    spawnInterval = Math.max(0.12, 0.5 - wave * 0.035)
     spawnQueue = []
     if (isBoss) {
       spawnQueue.push('boss')
-      for (let i = 0; i < 10 + wave * 2; i++) {
+      for (let i = 0; i < 6 + wave * 1.5; i++) {
         const r = Math.random()
         spawnQueue.push(r < 0.32 ? 'tank' : r < 0.55 ? 'fast' : 'z')
       }
       sound.bossSpawn()
     } else {
-      const n = 9 + wave * 5
+      const n = 8 + wave * 3
       const pool = ['z', 'z', 'fast']
       if (wave >= 3) pool.push('tank', 'fast')
       if (wave >= 4) pool.push('spitter', 'exploder')
-      if (wave >= 5) pool.push('charger', 'tank')
+      if (wave >= 6) pool.push('charger', 'tank')
       for (let i = 0; i < n; i++) spawnQueue.push(pool[Math.floor(Math.random() * pool.length)])
     }
     spawnTimer = 0

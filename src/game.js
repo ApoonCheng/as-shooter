@@ -29,11 +29,11 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
 
   // 升級項目（局內養成）
   const UPGRADES = [
-    { id: 'dmg', icon: '💥', name: '傷害 +30%', apply: (p) => { p.dmg *= 1.3 } },
-    { id: 'rate', icon: '⚡', name: '攻速 +20%', apply: (p) => { p.fireCd *= 0.83 } },
-    { id: 'multi', icon: '🔱', name: '多重彈 +1', apply: (p) => { p.multishot += 1 } },
-    { id: 'pierce', icon: '➡️', name: '穿透 +1', apply: (p) => { p.pierce += 1 } },
-    { id: 'hp', icon: '❤️', name: '最大血量 +25（回滿）', apply: (p) => { p.hpMax += 25; p.hp = p.hpMax } },
+    { id: 'dmg', icon: '💥', name: '傷害 +12', apply: (p) => { p.dmg += 12 } },
+    { id: 'rate', icon: '⚡', name: '攻速 +12%', apply: (p) => { p.fireCd = Math.max(0.06, p.fireCd * 0.88) } },
+    { id: 'multi', icon: '🔱', name: '多重彈 +1', apply: (p) => { p.multishot += 1 }, capped: (p) => p.multishot >= 5 },
+    { id: 'pierce', icon: '➡️', name: '穿透 +1', apply: (p) => { p.pierce += 1 }, capped: (p) => p.pierce >= 4 },
+    { id: 'hp', icon: '❤️', name: '最大血量 +30（回滿）', apply: (p) => { p.hpMax += 30; p.hp = p.hpMax } },
   ]
 
   function reset() {
@@ -108,27 +108,27 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     else { x = -30; y = Math.random() * H }
 
     if (type === 'boss') {
-      const bhp = 1900 + wave * 360
-      zombies.push({ x, y, r: 46, speed: 56 + wave * 2, hp: bhp, hpMax: bhp, dmg: 75, value: 250, xp: 8, coin: 60, boss: true, kind: 'boss', fireT: 2, emoji: '👹' })
+      const bhp = Math.round(1900 + wave * 360 + wave * wave * 14)
+      zombies.push({ x, y, r: 46, speed: Math.min(120, 56 + wave * 2), hp: bhp, hpMax: bhp, dmg: 75, value: 250, xp: 8, coin: 60, boss: true, kind: 'boss', fireT: 2, emoji: '👹' })
       shake(16)
     } else if (type === 'charger') {
-      const chp = 90 + wave * 16
-      zombies.push({ x, y, r: 16, speed: 95 + wave * 2, hp: chp, hpMax: chp, dmg: 20, value: 25, xp: 2, coin: 5, kind: 'charger', cstate: 'chase', t: 0, emoji: '😡' })
+      const chp = Math.round(90 + wave * 16 + wave * wave * 0.8)
+      zombies.push({ x, y, r: 16, speed: Math.min(150, 95 + wave * 2), hp: chp, hpMax: chp, dmg: 20, value: 25, xp: 2, coin: 5, kind: 'charger', cstate: 'chase', t: 0, emoji: '😡' })
     } else if (type === 'tank') {
-      const thp = 240 + wave * 50
-      zombies.push({ x, y, r: 27, speed: 44 + wave * 2, hp: thp, hpMax: thp, dmg: 42, value: 40, xp: 3, coin: 6, kind: 'tank', emoji: '🧟‍♂️' })
+      const thp = Math.round(240 + wave * 50 + wave * wave * 3)
+      zombies.push({ x, y, r: 27, speed: Math.min(140, 44 + wave * 2), hp: thp, hpMax: thp, dmg: 42, value: 40, xp: 3, coin: 6, kind: 'tank', emoji: '🧟‍♂️' })
     } else if (type === 'exploder') {
-      const ehp = 100 + wave * 22
-      zombies.push({ x, y, r: 15, speed: 80 + wave * 4, hp: ehp, hpMax: ehp, dmg: 28, value: 20, xp: 2, coin: 4, kind: 'exploder', emoji: '🤢' })
+      const ehp = Math.round(100 + wave * 22 + wave * wave * 1.2)
+      zombies.push({ x, y, r: 15, speed: Math.min(200, 80 + wave * 4), hp: ehp, hpMax: ehp, dmg: 28, value: 20, xp: 2, coin: 4, kind: 'exploder', emoji: '🤢' })
     } else if (type === 'spitter') {
-      const shp = 60 + wave * 13
-      zombies.push({ x, y, r: 15, speed: 82 + wave * 2, hp: shp, hpMax: shp, dmg: 18, value: 20, xp: 2, coin: 4, kind: 'spitter', fireT: 1.8, emoji: '🤮' })
+      const shp = Math.round(90 + wave * 16 + wave * wave * 1)
+      zombies.push({ x, y, r: 15, speed: Math.min(160, 82 + wave * 2), hp: shp, hpMax: shp, dmg: 18, value: 20, xp: 2, coin: 4, kind: 'spitter', fireT: 1.8, emoji: '🤮' })
     } else if (type === 'fast') {
-      const fhp = 45 + wave * 12
-      zombies.push({ x, y, r: 13, speed: 145 + wave * 7, hp: fhp, hpMax: fhp, dmg: 34, value: 15, xp: 1, coin: 3, kind: 'fast', emoji: '🧟‍♀️' })
+      const fhp = Math.round(45 + wave * 12 + wave * wave * 0.7)
+      zombies.push({ x, y, r: 13, speed: Math.min(320, 145 + wave * 7), hp: fhp, hpMax: fhp, dmg: 34, value: 15, xp: 1, coin: 3, kind: 'fast', emoji: '🧟‍♀️' })
     } else {
-      const zhp = 80 + wave * 22
-      zombies.push({ x, y, r: 17, speed: 72 + wave * 6, hp: zhp, hpMax: zhp, dmg: 30, value: 10, xp: 1, coin: 2, kind: 'z', emoji: '🧟' })
+      const zhp = Math.round(80 + wave * 22 + wave * wave * 1.3)
+      zombies.push({ x, y, r: 17, speed: Math.min(210, 72 + wave * 6), hp: zhp, hpMax: zhp, dmg: 30, value: 10, xp: 1, coin: 2, kind: 'z', emoji: '🧟' })
     }
   }
 
@@ -337,7 +337,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
 
   function startLevelUp() {
     levelingUp = true
-    const pool = [...UPGRADES]
+    const pool = UPGRADES.filter((u) => !(u.capped && u.capped(player)))
     const choices = []
     for (let i = 0; i < 3 && pool.length; i++) {
       const idx = Math.floor(Math.random() * pool.length)

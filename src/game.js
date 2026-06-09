@@ -33,10 +33,10 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     { id: 'pierce', icon: '➡️', name: '穿透 +1', apply: (p) => { p.pierce += 1 }, capped: (p) => p.pierce >= 4 },
     { id: 'hp', icon: '❤️', name: '最大血量 +30（回滿）', apply: (p) => { p.hpMax += 30; p.hp = p.hpMax } },
     { id: 'explosive', icon: '🧨', name: '爆裂彈（命中爆炸）', apply: (p) => { p.explosive += 1 }, capped: (p) => p.explosive >= 3 },
-    { id: 'poison', icon: '☠️', name: '毒彈（持續傷害）', apply: (p) => { p.poison += 1 }, capped: (p) => p.poison >= 3 },
+    { id: 'poison', icon: '☠️', name: '毒彈（強力持續傷害）', apply: (p) => { p.poison += 1 }, capped: (p) => p.poison >= 3, weight: 1.5 },
     { id: 'lifesteal', icon: '🩸', name: '吸血 +1（擊殺回血）', apply: (p) => { p.lifesteal += 1 }, capped: (p) => p.lifesteal >= 4 },
     { id: 'bounce', icon: '🪃', name: '彈跳 +1（撞牆反彈）', apply: (p) => { p.bounce += 1 }, capped: (p) => p.bounce >= 3 },
-    { id: 'orbit', icon: '🛡️', name: '環繞檳榔 +1', apply: (p) => { p.orbit += 1 }, capped: (p) => p.orbit >= 4 },
+    { id: 'orbit', icon: '🛡️', name: '環繞檳榔 +1（高傷護體）', apply: (p) => { p.orbit += 1 }, capped: (p) => p.orbit >= 4, weight: 1.5 },
   ]
 
   function reset() {
@@ -337,7 +337,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
         const ox = player.x + Math.cos(a) * ORB_R, oy = player.y + Math.sin(a) * ORB_R
         for (const z of zombies) {
           if (z.dead) continue
-          if (Math.hypot(z.x - ox, z.y - oy) < 13 + z.r) hurtZombie(z, player.dmg * 1.4 * dt)
+          if (Math.hypot(z.x - ox, z.y - oy) < 16 + z.r) hurtZombie(z, player.dmg * 2.8 * dt)
         }
       }
     }
@@ -365,7 +365,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
           b.hit.add(z)
           burst(b.x, b.y, '#ff8fcf', 4)
           sound.hit()
-          if (player.poison) { z.poisonT = 2; z.poisonDps = player.dmg * 0.25 * player.poison }
+          if (player.poison) { z.poisonT = 3; z.poisonDps = player.dmg * 0.55 * player.poison }
           hurtZombie(z, b.dmg)
           if (player.explosive) enemyExplode(b.x, b.y, 34 + player.explosive * 14, b.dmg * 0.5)
           if (b.pierceLeft <= 0) { b.life = 0; break } else b.pierceLeft--
@@ -392,11 +392,15 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
 
   function startLevelUp() {
     levelingUp = true
-    const pool = UPGRADES.filter((u) => !(u.capped && u.capped(player)))
+    const avail = UPGRADES.filter((u) => !(u.capped && u.capped(player)))
     const choices = []
-    const tmp = [...pool]
-    for (let i = 0; i < 3 && tmp.length; i++) {
-      const u = tmp.splice(Math.floor(Math.random() * tmp.length), 1)[0]
+    while (choices.length < 3 && avail.length) {
+      let total = 0
+      for (const u of avail) total += u.weight || 1
+      let r = Math.random() * total
+      let idx = 0
+      for (let i = 0; i < avail.length; i++) { r -= avail[i].weight || 1; if (r <= 0) { idx = i; break } }
+      const u = avail.splice(idx, 1)[0]
       choices.push({ id: u.id, icon: u.icon, name: u.name })
     }
     callbacks.onLevelUp?.(choices)

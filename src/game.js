@@ -72,15 +72,15 @@ export function createGame(canvas, callbacks = {}) {
   function nextWave() {
     wave++
     const isBoss = wave % 5 === 0
-    spawnInterval = Math.max(0.25, 0.7 - wave * 0.03)
+    spawnInterval = Math.max(0.16, 0.55 - wave * 0.035)
     spawnQueue = []
     if (isBoss) {
       spawnQueue.push('boss')
-      for (let i = 0; i < 3 + wave; i++) spawnQueue.push('z')
+      for (let i = 0; i < 6 + wave * 1.5; i++) spawnQueue.push(Math.random() < 0.3 ? 'fast' : 'z')
       sound.bossSpawn()
     } else {
-      const n = 4 + wave * 2
-      for (let i = 0; i < n; i++) spawnQueue.push(Math.random() < 0.22 ? 'fast' : 'z')
+      const n = 6 + wave * 3
+      for (let i = 0; i < n; i++) spawnQueue.push(Math.random() < 0.28 ? 'fast' : 'z')
     }
     spawnTimer = 0
     sound.waveStart()
@@ -97,11 +97,14 @@ export function createGame(canvas, callbacks = {}) {
     else { x = -30; y = Math.random() * H }
 
     if (type === 'boss') {
-      zombies.push({ x, y, r: 42, speed: 38 + wave, hp: 700 + wave * 120, hpMax: 700 + wave * 120, dmg: 45, value: 250, xp: 8, boss: true, emoji: '👹' })
+      const bhp = 950 + wave * 170
+      zombies.push({ x, y, r: 42, speed: 44 + wave * 1.5, hp: bhp, hpMax: bhp, dmg: 55, value: 250, xp: 8, boss: true, emoji: '👹' })
     } else if (type === 'fast') {
-      zombies.push({ x, y, r: 13, speed: 110 + wave * 4, hp: 30 + wave * 5, hpMax: 30 + wave * 5, dmg: 26, value: 15, xp: 1, emoji: '🧟‍♀️' })
+      const fhp = 35 + wave * 8
+      zombies.push({ x, y, r: 13, speed: 125 + wave * 5, hp: fhp, hpMax: fhp, dmg: 30, value: 15, xp: 1, emoji: '🧟‍♀️' })
     } else {
-      zombies.push({ x, y, r: 17, speed: 52 + wave * 3, hp: 50 + wave * 9, hpMax: 50 + wave * 9, dmg: 22, value: 10, xp: 1, emoji: '🧟' })
+      const zhp = 65 + wave * 15
+      zombies.push({ x, y, r: 17, speed: 60 + wave * 4, hp: zhp, hpMax: zhp, dmg: 26, value: 10, xp: 1, emoji: '🧟' })
     }
   }
 
@@ -178,7 +181,7 @@ export function createGame(canvas, callbacks = {}) {
       spawnTimer -= dt
       if (spawnTimer <= 0) { spawnTimer = spawnInterval; spawnOne(spawnQueue.shift()) }
     } else if (zombies.length === 0) {
-      betweenWaves = true; betweenTimer = 2.5
+      betweenWaves = true; betweenTimer = 1.6
     }
 
     // ---- 殭屍 AI ----

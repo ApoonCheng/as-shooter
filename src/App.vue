@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { createGame } from './game'
 import { supabase } from './lib/supabase'
+import { loadMeta, saveMeta, META_UPGRADES, costOf, bonuses } from './meta'
 
 const canvas = ref(null)
 const phase = ref('menu') // menu | playing | over
@@ -23,6 +24,22 @@ const submitted = ref(false)
 const boardError = ref('')
 const finalScore = ref(0)
 const finalWave = ref(0)
+
+// 局外養成
+const meta = ref(loadMeta())
+const coinsEarned = ref(0)
+const upgrades = META_UPGRADES
+
+function openShop() { phase.value = 'shop' }
+function buy(up) {
+  const lvl = meta.value.lv[up.id]
+  if (lvl >= up.max) return
+  const cost = costOf(up, lvl)
+  if (meta.value.coins < cost) return
+  meta.value.coins -= cost
+  meta.value.lv[up.id] = lvl + 1
+  saveMeta(meta.value)
+}
 
 let game = null
 let bannerTimer = null
@@ -51,11 +68,14 @@ function onWaveStart(n, isBoss) {
   bannerTimer = setTimeout(() => (banner.value = ''), 1600)
 }
 
-function onGameOver({ score: s, wave: w }) {
+function onGameOver({ score: s, wave: w, coins }) {
   game?.stop() // 停掉遊戲輸入監聽，避免干擾結束畫面操作
   levelChoices.value = null
   finalScore.value = s
   finalWave.value = w
+  coinsEarned.value = coins || 0
+  meta.value.coins += coinsEarned.value
+  saveMeta(meta.value)
   phase.value = 'over'
   submitted.value = false
   if (hasLeaderboard) fetchTop()
@@ -69,7 +89,7 @@ function startGame() {
   // 等 canvas 出現再建立遊戲
   requestAnimationFrame(() => {
     game?.stop()
-    game = createGame(canvas.value, { onStats, onWaveStart, onGameOver, onLevelUp })
+    game = createGame(canvas.value, { onStats, onWaveStart, onGameOver, onLevelUp }, { bonuses: bonuses(meta.value) })
     game.setMuted(muted.value)
     game.start()
   })
@@ -226,10 +246,35 @@ onUnmounted(() => {
           <div><b>自動</b> 瞄準射擊</div>
         </div>
         <p class="sub" style="margin-top:-8px">🔫 自動瞄準射擊，你只要專心移動閃殭屍！升級可三選一強化。<br />📱 手機：按住畫面拖曳即可移動</p>
+        <div class="coin-bal">🪙 {{ meta.coins }}</div>
         <button class="big" @click="startGame">開始遊戲</button>
+        <button class="big alt" @click="openShop">🛒 強化</button>
         <button v-if="hasLeaderboard" class="big alt" @click="openBoard">🏆 排行榜</button>
         <button class="mute-line" @click="toggleMute">{{ muted ? '🔇 音效關' : '🔊 音效開' }}</button>
         <p class="footer">非官方粉絲應援 · 純為好玩 ❤️</p>
+      </div>
+
+      <!-- 強化商店 -->
+      <div v-if="phase === 'shop'" class="overlay shop">
+        <h1>🛒 永久強化</h1>
+        <div class="coin-bal">🪙 {{ meta.coins }}</div>
+        <div class="shop-list">
+          <div v-for="u in upgrades" :key="u.id" class="shop-row">
+            <span class="shop-icon">{{ u.icon }}</span>
+            <div class="shop-info">
+              <div class="shop-name">{{ u.name }} <span class="shop-lv">Lv {{ meta.lv[u.id] }}/{{ u.max }}</span></div>
+              <div class="shop-desc">{{ u.desc }}</div>
+            </div>
+            <button
+              v-if="meta.lv[u.id] < u.max"
+              class="buy"
+              :disabled="meta.coins < costOf(u, meta.lv[u.id])"
+              @click="buy(u)"
+            >🪙 {{ costOf(u, meta.lv[u.id]) }}</button>
+            <span v-else class="maxed">MAX</span>
+          </div>
+        </div>
+        <button class="big" @click="phase = 'menu'">返回</button>
       </div>
 
       <!-- 排行榜畫面 -->
@@ -253,6 +298,7 @@ onUnmounted(() => {
         <h1>💀 GAME OVER</h1>
         <div class="final">{{ finalScore }}</div>
         <p class="sub">撐到第 {{ finalWave }} 波 · 得分 {{ finalScore }}</p>
+        <p class="coins-got">🪙 獲得 {{ coinsEarned }} 金幣（總計 {{ meta.coins }}）</p>
 
         <form v-if="hasLeaderboard && !submitted" class="submit-box" @submit.prevent="submitScore">
           <input v-model="playerName" maxlength="12" placeholder="輸入暱稱上榜" enterkeyhint="send" />

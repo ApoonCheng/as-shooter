@@ -3,11 +3,12 @@ import { Sound } from './sound'
 // 美秀打殭屍 — 自動瞄準射擊 + 升級養成（Archero 風格）
 // 移動：WASD / 方向鍵（電腦）、觸控浮動搖桿（手機）
 // 射擊：自動鎖定最近殭屍開火
-export function createGame(canvas, callbacks = {}) {
+export function createGame(canvas, callbacks = {}, opts = {}) {
   const ctx = canvas.getContext('2d')
   const W = canvas.width
   const H = canvas.height
   const sound = new Sound()
+  const bonus = opts.bonuses || {}
 
   const dogbo = new Image()
   let dogboOk = false
@@ -24,7 +25,7 @@ export function createGame(canvas, callbacks = {}) {
   let wave, spawnQueue, spawnTimer, spawnInterval
   let betweenWaves, betweenTimer
   let score, running, raf, lastTime, hurtSoundTimer
-  let levelingUp, shakeAmt
+  let levelingUp, shakeAmt, coins
 
   // 升級項目（局內養成）
   const UPGRADES = [
@@ -32,19 +33,19 @@ export function createGame(canvas, callbacks = {}) {
     { id: 'rate', icon: '⚡', name: '攻速 +20%', apply: (p) => { p.fireCd *= 0.83 } },
     { id: 'multi', icon: '🔱', name: '多重彈 +1', apply: (p) => { p.multishot += 1 } },
     { id: 'pierce', icon: '➡️', name: '穿透 +1', apply: (p) => { p.pierce += 1 } },
-    { id: 'speed', icon: '👟', name: '移速 +15%', apply: (p) => { p.speed *= 1.15 } },
     { id: 'hp', icon: '❤️', name: '最大血量 +25（回滿）', apply: (p) => { p.hpMax += 25; p.hp = p.hpMax } },
-    { id: 'regen', icon: '💚', name: '每秒回血 +1.5', apply: (p) => { p.regen += 1.5 } },
-    { id: 'bspeed', icon: '🚀', name: '彈速 +25%', apply: (p) => { p.bulletSpeed *= 1.25 } },
   ]
 
   function reset() {
+    const hpMax = 100 + (bonus.hpAdd || 0)
     player = {
       x: W / 2, y: H / 2, r: 13, angle: 0, cd: 0,
-      hp: 100, hpMax: 100, speed: 230,
-      dmg: 26, fireCd: 0.18, bulletSpeed: 620, multishot: 1, pierce: 0, regen: 0,
+      hp: hpMax, hpMax, speed: 230 * (bonus.speedMul || 1),
+      dmg: 26 * (bonus.dmgMul || 1), fireCd: 0.18 * (bonus.rateMul || 1),
+      bulletSpeed: 620, multishot: 1, pierce: 0, regen: 0,
       xp: 0, level: 1, xpNext: 5,
     }
+    coins = 0
     bullets = []
     zombies = []
     particles = []
@@ -110,20 +111,20 @@ export function createGame(canvas, callbacks = {}) {
 
     if (type === 'boss') {
       const bhp = 950 + wave * 170
-      zombies.push({ x, y, r: 42, speed: 44 + wave * 1.5, hp: bhp, hpMax: bhp, dmg: 55, value: 250, xp: 8, boss: true, kind: 'boss', emoji: '👹' })
+      zombies.push({ x, y, r: 42, speed: 44 + wave * 1.5, hp: bhp, hpMax: bhp, dmg: 55, value: 250, xp: 8, coin: 60, boss: true, kind: 'boss', emoji: '👹' })
       shake(16)
     } else if (type === 'tank') {
       const thp = 190 + wave * 34
-      zombies.push({ x, y, r: 27, speed: 40 + wave * 1.6, hp: thp, hpMax: thp, dmg: 34, value: 40, xp: 3, kind: 'tank', emoji: '🧟‍♂️' })
+      zombies.push({ x, y, r: 27, speed: 40 + wave * 1.6, hp: thp, hpMax: thp, dmg: 34, value: 40, xp: 3, coin: 6, kind: 'tank', emoji: '🧟‍♂️' })
     } else if (type === 'exploder') {
       const ehp = 75 + wave * 15
-      zombies.push({ x, y, r: 15, speed: 72 + wave * 3, hp: ehp, hpMax: ehp, dmg: 22, value: 20, xp: 2, kind: 'exploder', emoji: '🤢' })
+      zombies.push({ x, y, r: 15, speed: 72 + wave * 3, hp: ehp, hpMax: ehp, dmg: 22, value: 20, xp: 2, coin: 4, kind: 'exploder', emoji: '🤢' })
     } else if (type === 'fast') {
       const fhp = 35 + wave * 8
-      zombies.push({ x, y, r: 13, speed: 125 + wave * 5, hp: fhp, hpMax: fhp, dmg: 30, value: 15, xp: 1, kind: 'fast', emoji: '🧟‍♀️' })
+      zombies.push({ x, y, r: 13, speed: 125 + wave * 5, hp: fhp, hpMax: fhp, dmg: 30, value: 15, xp: 1, coin: 3, kind: 'fast', emoji: '🧟‍♀️' })
     } else {
       const zhp = 65 + wave * 15
-      zombies.push({ x, y, r: 17, speed: 60 + wave * 4, hp: zhp, hpMax: zhp, dmg: 26, value: 10, xp: 1, kind: 'z', emoji: '🧟' })
+      zombies.push({ x, y, r: 17, speed: 60 + wave * 4, hp: zhp, hpMax: zhp, dmg: 26, value: 10, xp: 1, coin: 2, kind: 'z', emoji: '🧟' })
     }
   }
 
@@ -171,6 +172,7 @@ export function createGame(canvas, callbacks = {}) {
   function onKill(z) {
     score += z.value
     player.xp += z.xp
+    coins += z.coin || 0
     if (z.kind === 'exploder') explode(z)
     else { burst(z.x, z.y, z.boss ? '#ffd23f' : '#a855f7', z.boss ? 28 : 10); sound.kill() }
     if (z.boss) shake(18)
@@ -419,7 +421,7 @@ export function createGame(canvas, callbacks = {}) {
     running = false
     cancelAnimationFrame(raf)
     sound.gameOver()
-    callbacks.onGameOver?.({ score, wave })
+    callbacks.onGameOver?.({ score, wave, coins: Math.round(coins * (bonus.coinMul || 1)) })
   }
 
   function canvasPos(e) {

@@ -58,17 +58,17 @@ export function saveMeta(m) {
 }
 
 export function costOf(up, level) {
-  return Math.round(up.baseCost * Math.pow(1.6, level))
+  return Math.round(up.baseCost * Math.pow(1.6, num(level)))
 }
 
-// 把養成等級換算成遊戲加成
+// 把養成等級換算成遊戲加成（全程 num() 防呆，不可能 NaN）
 export function bonuses(m) {
   const lv = m.lv
   return {
-    dmgMul: 1 + 0.10 * lv.atk,
-    hpAdd: 20 * lv.hp,
-    rateMul: Math.pow(0.95, lv.rate),
-    speedMul: 1 + 0.04 * lv.speed,
-    coinMul: 1 + 0.15 * lv.coin,
+    dmgMul: 1 + 0.10 * num(lv.atk),
+    hpAdd: 20 * num(lv.hp),
+    rateMul: Math.pow(0.95, num(lv.rate)),
+    speedMul: 1 + 0.04 * num(lv.speed),
+    coinMul: 1 + 0.15 * num(lv.coin),
   }
 }

@@ -76,8 +76,9 @@ function onGameOver({ score: s, wave: w, coins, kills, bosses }) {
   levelChoices.value = null
   finalScore.value = s
   finalWave.value = w
-  coinsEarned.value = coins || 0
-  meta.value.coins += coinsEarned.value
+  const earned = Number.isFinite(coins) ? coins : 0
+  coinsEarned.value = earned
+  meta.value.coins = (Number.isFinite(meta.value.coins) ? meta.value.coins : 0) + earned
   newAchievements.value = recordGame(meta.value, { kills, bosses, wave: w })
   saveMeta(meta.value)
   phase.value = 'over'

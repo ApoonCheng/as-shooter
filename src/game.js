@@ -24,7 +24,14 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   let wave, spawnQueue, spawnTimer, spawnInterval
   let betweenWaves, betweenTimer
   let score, running, raf, lastTime, hurtSoundTimer
-  let levelingUp, shakeAmt, coins, killCount, bossKills, orbAngle
+  let levelingUp, shakeAmt, coins, killCount, bossKills, orbAngle, pendingBossType
+
+  const BOSS_TYPES = [
+    { key: 'volley', name: '彈幕王', emoji: '👹' },
+    { key: 'summon', name: '召喚王', emoji: '🧛' },
+    { key: 'ring', name: '環射王', emoji: '👻' },
+    { key: 'charger', name: '衝撞王', emoji: '🐗' },
+  ]
 
   const UPGRADES = [
     { id: 'dmg', icon: '💥', name: '傷害 +12', apply: (p) => { p.dmg += 12 } },
@@ -74,7 +81,11 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     const isBoss = wave % 5 === 0
     spawnInterval = Math.max(0.1, 0.48 - wave * 0.045)
     spawnQueue = []
+    let bossName = ''
     if (isBoss) {
+      const bt = BOSS_TYPES[(wave / 5 - 1) % BOSS_TYPES.length]
+      pendingBossType = bt.key
+      bossName = bt.name
       spawnQueue.push('boss')
       for (let i = 0; i < 6 + wave * 1.5; i++) {
         const r = Math.random()
@@ -91,7 +102,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     }
     spawnTimer = 0
     sound.waveStart()
-    callbacks.onWaveStart?.(wave, isBoss)
+    callbacks.onWaveStart?.(wave, isBoss, bossName)
     pushStats()
   }
 
@@ -105,7 +116,8 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     const q = wave * wave
     if (type === 'boss') {
       const bhp = Math.round(2100 + wave * 400 + q * 16)
-      zombies.push({ x, y, r: 46, speed: Math.min(135, 60 + wave * 2), hp: bhp, hpMax: bhp, dmg: 85, value: 250, xp: 8, coin: 60, boss: true, kind: 'boss', fireT: 2, emoji: '👹' })
+      const bt = BOSS_TYPES.find((b) => b.key === pendingBossType) || BOSS_TYPES[0]
+      zombies.push({ x, y, r: 46, speed: Math.min(135, 60 + wave * 2), hp: bhp, hpMax: bhp, dmg: 85, value: 250, xp: 8, coin: 60, boss: true, kind: 'boss', bossType: bt.key, fireT: 2, cstate: 'chase', t: 0, emoji: bt.emoji })
       shake(16)
     } else if (type === 'charger') {
       const chp = Math.round(100 + wave * 18 + q * 0.9)
@@ -194,6 +206,43 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       ebullets.push({ x: z.x, y: z.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 11, dmg: 22, life: 4 })
     }
     shake(6)
+  }
+
+  function bossSummon(z) {
+    for (let i = 0; i < 3; i++) {
+      const ang = Math.random() * Math.PI * 2
+      const fhp = Math.round(45 + wave * 12 + wave * wave * 0.8)
+      zombies.push({ x: z.x + Math.cos(ang) * 50, y: z.y + Math.sin(ang) * 50, r: 13, speed: Math.min(360, 150 + wave * 7), hp: fhp, hpMax: fhp, dmg: 38, value: 15, xp: 1, coin: 3, kind: 'fast', emoji: '🧟‍♀️' })
+    }
+    shake(5)
+  }
+
+  function bossRing(z) {
+    const cnt = 18, sp = 200
+    for (let i = 0; i < cnt; i++) {
+      const a = (i / cnt) * Math.PI * 2
+      ebullets.push({ x: z.x, y: z.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 9, dmg: 18, life: 4 })
+    }
+    shake(8)
+  }
+
+  function bossAI(z, dt, a, d) {
+    const cos = Math.cos(a), sin = Math.sin(a)
+    z.fireT -= dt
+    if (z.bossType === 'summon') {
+      z.x += cos * z.speed * 0.55 * dt; z.y += sin * z.speed * 0.55 * dt
+      if (z.fireT <= 0) { z.fireT = 3; bossSummon(z) }
+    } else if (z.bossType === 'ring') {
+      z.x += cos * z.speed * 0.4 * dt; z.y += sin * z.speed * 0.4 * dt
+      if (z.fireT <= 0) { z.fireT = 2.4; bossRing(z) }
+    } else if (z.bossType === 'charger') {
+      if (z.cstate === 'chase') { z.x += cos * z.speed * dt; z.y += sin * z.speed * dt; if (d < 340) { z.cstate = 'windup'; z.t = 0.6 } }
+      else if (z.cstate === 'windup') { z.t -= dt; if (z.t <= 0) { z.cstate = 'dash'; z.t = 0.7; z.dvx = cos * 640; z.dvy = sin * 640 } }
+      else { z.x += z.dvx * dt; z.y += z.dvy * dt; z.t -= dt; if (z.t <= 0) z.cstate = 'chase' }
+    } else {
+      z.x += cos * z.speed * dt; z.y += sin * z.speed * dt
+      if (z.fireT <= 0) { z.fireT = 1.4; bossVolley(z) }
+    }
   }
 
   function onKill(z) {
@@ -316,9 +365,10 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
           z.x += z.dvx * dt; z.y += z.dvy * dt; z.t -= dt
           if (d < player.r + z.r || z.t <= 0) { explodeAt(z.x, z.y, 96, 28, '#ff4d6d'); z.dead = true; z.hp = 0 }
         }
+      } else if (z.boss) {
+        bossAI(z, dt, a, d)
       } else {
         z.x += Math.cos(a) * z.speed * dt; z.y += Math.sin(a) * z.speed * dt
-        if (z.boss) { z.fireT -= dt; if (z.fireT <= 0) { z.fireT = 1.4; bossVolley(z) } }
       }
       // 毒傷害
       if (z.poisonT > 0) { z.poisonT -= dt; hurtZombie(z, z.poisonDps * dt) }
@@ -465,7 +515,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     }
 
     for (const z of zombies) {
-      if (z.kind === 'charger' && z.cstate === 'windup') {
+      if (z.cstate === 'windup' && (z.kind === 'charger' || z.bossType === 'charger')) {
         ctx.strokeStyle = '#ff4d6d'; ctx.lineWidth = 3
         ctx.beginPath(); ctx.arc(z.x, z.y, z.r + 7, 0, Math.PI * 2); ctx.stroke()
       }

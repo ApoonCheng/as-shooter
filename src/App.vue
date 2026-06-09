@@ -66,8 +66,8 @@ function chooseUpgrade(c) {
   levelChoices.value = null
 }
 
-function onWaveStart(n, isBoss) {
-  banner.value = isBoss ? `👹 第 ${n} 波 · 殭屍王來襲！` : `第 ${n} 波`
+function onWaveStart(n, isBoss, bossName) {
+  banner.value = isBoss ? `👹 第 ${n} 波 · ${bossName || '殭屍王'}來襲！` : `第 ${n} 波`
   clearTimeout(bannerTimer)
   bannerTimer = setTimeout(() => (banner.value = ''), 1600)
 }

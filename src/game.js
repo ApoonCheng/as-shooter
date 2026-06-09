@@ -91,9 +91,10 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
         const r = Math.random()
         let t = 'z'
         if (wave >= 4 && r < 0.12) t = 'exploder'
-        else if (wave >= 3 && r < 0.32) t = 'spitter'
-        else if (wave >= 3 && r < 0.50) t = 'tank'
-        else if (r < 0.66) t = 'fast'
+        else if (wave >= 5 && r < 0.24) t = 'charger'
+        else if (wave >= 3 && r < 0.40) t = 'spitter'
+        else if (wave >= 3 && r < 0.56) t = 'tank'
+        else if (r < 0.70) t = 'fast'
         spawnQueue.push(t)
       }
     }
@@ -112,9 +113,12 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     else { x = -30; y = Math.random() * H }
 
     if (type === 'boss') {
-      const bhp = 1300 + wave * 250
-      zombies.push({ x, y, r: 42, speed: 50 + wave * 2, hp: bhp, hpMax: bhp, dmg: 70, value: 250, xp: 8, coin: 60, boss: true, kind: 'boss', emoji: '👹' })
+      const bhp = 1900 + wave * 360
+      zombies.push({ x, y, r: 46, speed: 56 + wave * 2, hp: bhp, hpMax: bhp, dmg: 75, value: 250, xp: 8, coin: 60, boss: true, kind: 'boss', fireT: 2, emoji: '👹' })
       shake(16)
+    } else if (type === 'charger') {
+      const chp = 90 + wave * 16
+      zombies.push({ x, y, r: 16, speed: 95 + wave * 2, hp: chp, hpMax: chp, dmg: 20, value: 25, xp: 2, coin: 5, kind: 'charger', cstate: 'chase', t: 0, emoji: '😡' })
     } else if (type === 'tank') {
       const thp = 240 + wave * 50
       zombies.push({ x, y, r: 27, speed: 44 + wave * 2, hp: thp, hpMax: thp, dmg: 42, value: 40, xp: 3, coin: 6, kind: 'tank', emoji: '🧟‍♂️' })
@@ -163,28 +167,39 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
 
   function shake(m) { shakeAmt = Math.min(22, Math.max(shakeAmt, m)) }
 
+  function explodeAt(x, y, radius, dmg, color) {
+    burst(x, y, color || '#ff7a3b', 30)
+    shake(12)
+    sound.kill()
+    if (Math.hypot(player.x - x, player.y - y) < radius + player.r) {
+      player.hp -= dmg
+      sound.hurt()
+      if (player.hp <= 0) { player.hp = 0; gameOver() }
+    }
+  }
+
   function spitAt(z) {
     const a = Math.atan2(player.y - z.y, player.x - z.x)
     const sp = 265
     ebullets.push({ x: z.x, y: z.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 9, dmg: 18, life: 4 })
   }
 
-  function explode(z) {
-    burst(z.x, z.y, '#ff7a3b', 30)
-    shake(12)
-    sound.kill()
-    if (Math.hypot(player.x - z.x, player.y - z.y) < 82 + player.r) {
-      player.hp -= 30
-      sound.hurt()
-      if (player.hp <= 0) { player.hp = 0; gameOver() }
+  function bossVolley(z) {
+    const base = Math.atan2(player.y - z.y, player.x - z.x)
+    const n = 5, spread = 0.5, sp = 245
+    for (let i = 0; i < n; i++) {
+      const a = base - (spread * (n - 1)) / 2 + spread * i
+      ebullets.push({ x: z.x, y: z.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 11, dmg: 22, life: 4 })
     }
+    shake(6)
   }
 
   function onKill(z) {
     score += z.value
     player.xp += z.xp
     coins += z.coin || 0
-    if (z.kind === 'exploder') explode(z)
+    if (z.kind === 'exploder') explodeAt(z.x, z.y, 82, 30)
+    else if (z.kind === 'charger') explodeAt(z.x, z.y, 96, 42, '#ff4d6d')
     else { burst(z.x, z.y, z.boss ? '#ffd23f' : '#a855f7', z.boss ? 28 : 10); sound.kill() }
     if (z.boss) shake(18)
     if (Math.random() < (z.boss ? 1 : 0.004)) pickups.push({ x: z.x, y: z.y, r: 14 })
@@ -249,11 +264,24 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
         else if (d < 230) { z.x -= Math.cos(a) * z.speed * dt; z.y -= Math.sin(a) * z.speed * dt }
         z.fireT -= dt
         if (z.fireT <= 0) { z.fireT = 1.0; spitAt(z) }
+      } else if (z.kind === 'charger') {
+        // 接近 → 蓄力 → 衝刺 → 自爆
+        if (z.cstate === 'chase') {
+          z.x += Math.cos(a) * z.speed * dt; z.y += Math.sin(a) * z.speed * dt
+          if (d < 250) { z.cstate = 'windup'; z.t = 0.45 }
+        } else if (z.cstate === 'windup') {
+          z.t -= dt
+          if (z.t <= 0) { z.cstate = 'dash'; z.t = 0.55; z.dvx = Math.cos(a) * 440; z.dvy = Math.sin(a) * 440 }
+        } else {
+          z.x += z.dvx * dt; z.y += z.dvy * dt; z.t -= dt
+          if (d < player.r + z.r || z.t <= 0) { explodeAt(z.x, z.y, 96, 42, '#ff4d6d'); z.hp = 0 }
+        }
       } else {
         z.x += Math.cos(a) * z.speed * dt
         z.y += Math.sin(a) * z.speed * dt
+        if (z.boss) { z.fireT -= dt; if (z.fireT <= 0) { z.fireT = 1.8; bossVolley(z) } }
       }
-      if (d < player.r + z.r) {
+      if (z.hp > 0 && d < player.r + z.r) {
         player.hp -= z.dmg * dt
         if (hurtSoundTimer <= 0) { sound.hurt(); hurtSoundTimer = 0.35 }
         if (player.hp <= 0) { player.hp = 0; return gameOver() }
@@ -379,6 +407,10 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
 
     // 殭屍
     for (const z of zombies) {
+      if (z.kind === 'charger' && z.cstate === 'windup') {
+        ctx.strokeStyle = '#ff4d6d'; ctx.lineWidth = 3
+        ctx.beginPath(); ctx.arc(z.x, z.y, z.r + 7, 0, Math.PI * 2); ctx.stroke()
+      }
       drawEmoji(z.emoji, z.x, z.y, z.r * 2)
       if (z.boss) {
         const w = 80, hpr = z.hp / z.hpMax

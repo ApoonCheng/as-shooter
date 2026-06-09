@@ -38,7 +38,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     { id: 'rate', icon: '⚡', name: '攻速 +10%', apply: (p) => { p.fireCd = Math.max(0.09, p.fireCd * 0.9) } },
     { id: 'multi', icon: '🔱', name: '多重彈 +1', apply: (p) => { p.multishot += 1 }, capped: (p) => p.multishot >= 4 },
     { id: 'pierce', icon: '➡️', name: '穿透 +1', apply: (p) => { p.pierce += 1 }, capped: (p) => p.pierce >= 3 },
-    { id: 'hp', icon: '❤️', name: '最大血量 +30（回滿）', apply: (p) => { p.hpMax += 30; p.hp = p.hpMax } },
+    { id: 'hp', icon: '❤️', name: '最大血量 +30（補30血）', apply: (p) => { p.hpMax += 30; p.hp = Math.min(p.hpMax, p.hp + 30) } },
     { id: 'explosive', icon: '🧨', name: '爆裂彈（命中爆炸）', apply: (p) => { p.explosive += 1 }, capped: (p) => p.explosive >= 3 },
     { id: 'poison', icon: '☠️', name: '毒彈（強力持續傷害）', apply: (p) => { p.poison += 1 }, capped: (p) => p.poison >= 3, weight: 1.5 },
     { id: 'lifesteal', icon: '🩸', name: '吸血 +1（擊殺回血）', apply: (p) => { p.lifesteal += 1 }, capped: (p) => p.lifesteal >= 4 },
@@ -115,8 +115,9 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     else { x = -30; y = Math.random() * H }
     const q = wave * wave
     if (type === 'boss') {
-      const bhp = Math.round(2100 + wave * 400 + q * 16)
       const bt = BOSS_TYPES.find((b) => b.key === pendingBossType) || BOSS_TYPES[0]
+      let bhp = Math.round(2100 + wave * 400 + q * 16)
+      if (bt.key === 'charger') bhp = Math.round(bhp * 2) // 衝撞王血量加倍
       zombies.push({ x, y, r: 46, speed: Math.min(135, 60 + wave * 2), hp: bhp, hpMax: bhp, dmg: 85, value: 250, xp: 8, coin: 60, boss: true, kind: 'boss', bossType: bt.key, fireT: 2, cstate: 'chase', t: 0, emoji: bt.emoji })
       shake(16)
     } else if (type === 'charger') {
@@ -208,17 +209,10 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     shake(6)
   }
 
-  function bossSummon(z) {
-    const q = wave * wave
-    const near = () => ({ x: z.x + (Math.random() * 80 - 40), y: z.y + (Math.random() * 80 - 40) })
-    for (let i = 0; i < 2; i++) {
-      const p = near(); const fhp = Math.round(50 + wave * 14 + q * 1)
-      zombies.push({ x: p.x, y: p.y, r: 13, speed: Math.min(360, 150 + wave * 7), hp: fhp, hpMax: fhp, dmg: 38, value: 15, xp: 1, coin: 3, kind: 'fast', emoji: '🧟‍♀️' })
-    }
-    const pt = near(); const thp = Math.round(260 + wave * 52 + q * 3.2)
-    zombies.push({ x: pt.x, y: pt.y, r: 27, speed: Math.min(160, 48 + wave * 2), hp: thp, hpMax: thp, dmg: 48, value: 40, xp: 3, coin: 6, kind: 'tank', emoji: '🧟‍♂️' })
-    const ps = near(); const shp = Math.round(100 + wave * 18 + q * 1.2)
-    zombies.push({ x: ps.x, y: ps.y, r: 15, speed: Math.min(170, 86 + wave * 2), hp: shp, hpMax: shp, dmg: 18, value: 20, xp: 2, coin: 4, kind: 'spitter', fireT: 1.5, emoji: '🤮' })
+  function bossSummon() {
+    // 從四面八方生怪（spawnOne 會在隨機邊緣生成），避免被彈幕一次掃光
+    const kinds = ['fast', 'fast', 'tank', 'spitter', 'fast']
+    for (const k of kinds) spawnOne(k)
     shake(6)
   }
 
@@ -347,6 +341,10 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     } else if (spawnQueue.length) {
       spawnTimer -= dt
       if (spawnTimer <= 0) { spawnTimer = spawnInterval; spawnOne(spawnQueue.shift()) }
+    } else if (zombies.some((z) => z.boss)) {
+      // 王還活著 → 持續補怪
+      spawnTimer -= dt
+      if (spawnTimer <= 0) { spawnTimer = 1.0; spawnOne(Math.random() < 0.35 ? 'fast' : 'z') }
     } else if (zombies.length === 0) { betweenWaves = true; betweenTimer = 1.2 }
 
     // 殭屍 AI + 毒

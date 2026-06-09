@@ -194,7 +194,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     player.xp += z.xp
     coins += z.coin || 0
     if (z.kind === 'exploder') explodeAt(z.x, z.y, 82, 30)
-    else if (z.kind === 'charger') explodeAt(z.x, z.y, 96, 42, '#ff4d6d')
+    else if (z.kind === 'charger') explodeAt(z.x, z.y, 96, 28, '#ff4d6d')
     else { burst(z.x, z.y, z.boss ? '#ffd23f' : '#a855f7', z.boss ? 28 : 10); sound.kill() }
     if (z.boss) shake(18)
     if (Math.random() < (z.boss ? 1 : 0.004)) pickups.push({ x: z.x, y: z.y, r: 14 })
@@ -269,7 +269,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
           if (z.t <= 0) { z.cstate = 'dash'; z.t = 0.55; z.dvx = Math.cos(a) * 440; z.dvy = Math.sin(a) * 440 }
         } else {
           z.x += z.dvx * dt; z.y += z.dvy * dt; z.t -= dt
-          if (d < player.r + z.r || z.t <= 0) { explodeAt(z.x, z.y, 96, 42, '#ff4d6d'); z.hp = 0 }
+          if (d < player.r + z.r || z.t <= 0) { explodeAt(z.x, z.y, 96, 28, '#ff4d6d'); z.hp = 0 }
         }
       } else {
         z.x += Math.cos(a) * z.speed * dt

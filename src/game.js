@@ -80,7 +80,7 @@ export function createGame(canvas, callbacks = {}) {
       spawnQueue.push('boss')
       for (let i = 0; i < 6 + wave * 1.5; i++) {
         const r = Math.random()
-        spawnQueue.push(r < 0.15 ? 'tank' : r < 0.45 ? 'fast' : 'z')
+        spawnQueue.push(r < 0.32 ? 'tank' : r < 0.55 ? 'fast' : 'z')
       }
       sound.bossSpawn()
     } else {
@@ -89,8 +89,8 @@ export function createGame(canvas, callbacks = {}) {
         const r = Math.random()
         let t = 'z'
         if (wave >= 4 && r < 0.12) t = 'exploder'
-        else if (wave >= 3 && r < 0.24) t = 'tank'
-        else if (r < 0.5) t = 'fast'
+        else if (wave >= 3 && r < 0.42) t = 'tank'
+        else if (r < 0.62) t = 'fast'
         spawnQueue.push(t)
       }
     }
@@ -116,7 +116,7 @@ export function createGame(canvas, callbacks = {}) {
       const thp = 190 + wave * 34
       zombies.push({ x, y, r: 27, speed: 40 + wave * 1.6, hp: thp, hpMax: thp, dmg: 34, value: 40, xp: 3, kind: 'tank', emoji: '🧟‍♂️' })
     } else if (type === 'exploder') {
-      const ehp = 45 + wave * 9
+      const ehp = 75 + wave * 15
       zombies.push({ x, y, r: 15, speed: 72 + wave * 3, hp: ehp, hpMax: ehp, dmg: 22, value: 20, xp: 2, kind: 'exploder', emoji: '🤢' })
     } else if (type === 'fast') {
       const fhp = 35 + wave * 8

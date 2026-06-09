@@ -128,16 +128,16 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       zombies.push({ x, y, r: 27, speed: Math.min(160, 48 + wave * 2), hp: thp, hpMax: thp, dmg: 48, value: 40, xp: 3, coin: 6, kind: 'tank', emoji: '🧟‍♂️' })
     } else if (type === 'exploder') {
       const ehp = Math.round(110 + wave * 22 + q * 1.3)
-      zombies.push({ x, y, r: 15, speed: Math.min(215, 85 + wave * 4), hp: ehp, hpMax: ehp, dmg: 28, value: 20, xp: 2, coin: 4, kind: 'exploder', emoji: '🤢' })
+      zombies.push({ x, y, r: 15, speed: Math.min(190, 78 + wave * 4), hp: ehp, hpMax: ehp, dmg: 28, value: 20, xp: 2, coin: 4, kind: 'exploder', emoji: '🤢' })
     } else if (type === 'spitter') {
       const shp = Math.round(100 + wave * 18 + q * 1.2)
       zombies.push({ x, y, r: 15, speed: Math.min(170, 86 + wave * 2), hp: shp, hpMax: shp, dmg: 18, value: 20, xp: 2, coin: 4, kind: 'spitter', fireT: 1.8, emoji: '🤮' })
     } else if (type === 'fast') {
       const fhp = Math.round(45 + wave * 12 + q * 0.8)
-      zombies.push({ x, y, r: 13, speed: Math.min(360, 150 + wave * 7), hp: fhp, hpMax: fhp, dmg: 38, value: 15, xp: 1, coin: 3, kind: 'fast', emoji: '🧟‍♀️' })
+      zombies.push({ x, y, r: 13, speed: Math.min(310, 135 + wave * 6), hp: fhp, hpMax: fhp, dmg: 38, value: 15, xp: 1, coin: 3, kind: 'fast', emoji: '🧟‍♀️' })
     } else {
       const zhp = Math.round(85 + wave * 22 + q * 1.4)
-      zombies.push({ x, y, r: 17, speed: Math.min(235, 78 + wave * 6), hp: zhp, hpMax: zhp, dmg: 34, value: 10, xp: 1, coin: 2, kind: 'z', emoji: '🧟' })
+      zombies.push({ x, y, r: 17, speed: Math.min(200, 68 + wave * 5), hp: zhp, hpMax: zhp, dmg: 34, value: 10, xp: 1, coin: 2, kind: 'z', emoji: '🧟' })
     }
   }
 

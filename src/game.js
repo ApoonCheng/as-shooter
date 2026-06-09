@@ -20,11 +20,11 @@ export function createGame(canvas, callbacks = {}) {
   const MAXR = 55
   const joy = { id: null, ox: 0, oy: 0, x: 0, y: 0 } // 浮動搖桿
 
-  let player, bullets, zombies, particles
+  let player, bullets, zombies, particles, pickups
   let wave, spawnQueue, spawnTimer, spawnInterval
   let betweenWaves, betweenTimer
   let score, running, raf, lastTime, hurtSoundTimer
-  let levelingUp
+  let levelingUp, shakeAmt
 
   // 升級項目（局內養成）
   const UPGRADES = [
@@ -48,6 +48,8 @@ export function createGame(canvas, callbacks = {}) {
     bullets = []
     zombies = []
     particles = []
+    pickups = []
+    shakeAmt = 0
     wave = 0
     spawnQueue = []
     spawnTimer = 0
@@ -76,11 +78,21 @@ export function createGame(canvas, callbacks = {}) {
     spawnQueue = []
     if (isBoss) {
       spawnQueue.push('boss')
-      for (let i = 0; i < 6 + wave * 1.5; i++) spawnQueue.push(Math.random() < 0.3 ? 'fast' : 'z')
+      for (let i = 0; i < 6 + wave * 1.5; i++) {
+        const r = Math.random()
+        spawnQueue.push(r < 0.15 ? 'tank' : r < 0.45 ? 'fast' : 'z')
+      }
       sound.bossSpawn()
     } else {
       const n = 6 + wave * 3
-      for (let i = 0; i < n; i++) spawnQueue.push(Math.random() < 0.28 ? 'fast' : 'z')
+      for (let i = 0; i < n; i++) {
+        const r = Math.random()
+        let t = 'z'
+        if (wave >= 4 && r < 0.12) t = 'exploder'
+        else if (wave >= 3 && r < 0.24) t = 'tank'
+        else if (r < 0.5) t = 'fast'
+        spawnQueue.push(t)
+      }
     }
     spawnTimer = 0
     sound.waveStart()
@@ -98,13 +110,20 @@ export function createGame(canvas, callbacks = {}) {
 
     if (type === 'boss') {
       const bhp = 950 + wave * 170
-      zombies.push({ x, y, r: 42, speed: 44 + wave * 1.5, hp: bhp, hpMax: bhp, dmg: 55, value: 250, xp: 8, boss: true, emoji: '👹' })
+      zombies.push({ x, y, r: 42, speed: 44 + wave * 1.5, hp: bhp, hpMax: bhp, dmg: 55, value: 250, xp: 8, boss: true, kind: 'boss', emoji: '👹' })
+      shake(16)
+    } else if (type === 'tank') {
+      const thp = 190 + wave * 34
+      zombies.push({ x, y, r: 27, speed: 40 + wave * 1.6, hp: thp, hpMax: thp, dmg: 34, value: 40, xp: 3, kind: 'tank', emoji: '🧟‍♂️' })
+    } else if (type === 'exploder') {
+      const ehp = 45 + wave * 9
+      zombies.push({ x, y, r: 15, speed: 72 + wave * 3, hp: ehp, hpMax: ehp, dmg: 22, value: 20, xp: 2, kind: 'exploder', emoji: '🤢' })
     } else if (type === 'fast') {
       const fhp = 35 + wave * 8
-      zombies.push({ x, y, r: 13, speed: 125 + wave * 5, hp: fhp, hpMax: fhp, dmg: 30, value: 15, xp: 1, emoji: '🧟‍♀️' })
+      zombies.push({ x, y, r: 13, speed: 125 + wave * 5, hp: fhp, hpMax: fhp, dmg: 30, value: 15, xp: 1, kind: 'fast', emoji: '🧟‍♀️' })
     } else {
       const zhp = 65 + wave * 15
-      zombies.push({ x, y, r: 17, speed: 60 + wave * 4, hp: zhp, hpMax: zhp, dmg: 26, value: 10, xp: 1, emoji: '🧟' })
+      zombies.push({ x, y, r: 17, speed: 60 + wave * 4, hp: zhp, hpMax: zhp, dmg: 26, value: 10, xp: 1, kind: 'z', emoji: '🧟' })
     }
   }
 
@@ -134,6 +153,28 @@ export function createGame(canvas, callbacks = {}) {
       const s = 40 + Math.random() * 120
       particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0.5, color })
     }
+  }
+
+  function shake(m) { shakeAmt = Math.min(22, Math.max(shakeAmt, m)) }
+
+  function explode(z) {
+    burst(z.x, z.y, '#ff7a3b', 30)
+    shake(12)
+    sound.kill()
+    if (Math.hypot(player.x - z.x, player.y - z.y) < 82 + player.r) {
+      player.hp -= 30
+      sound.hurt()
+      if (player.hp <= 0) { player.hp = 0; gameOver() }
+    }
+  }
+
+  function onKill(z) {
+    score += z.value
+    player.xp += z.xp
+    if (z.kind === 'exploder') explode(z)
+    else { burst(z.x, z.y, z.boss ? '#ffd23f' : '#a855f7', z.boss ? 28 : 10); sound.kill() }
+    if (z.boss) shake(18)
+    if (Math.random() < (z.boss ? 1 : 0.06)) pickups.push({ x: z.x, y: z.y, r: 14 })
   }
 
   function update(dt) {
@@ -207,12 +248,7 @@ export function createGame(canvas, callbacks = {}) {
           b.hit.add(z)
           burst(b.x, b.y, '#ff8fcf', 4)
           sound.hit()
-          if (z.hp <= 0) {
-            score += z.value
-            player.xp += z.xp
-            burst(z.x, z.y, z.boss ? '#ffd23f' : '#a855f7', z.boss ? 24 : 10)
-            sound.kill()
-          }
+          if (z.hp <= 0) onKill(z)
           if (b.pierceLeft <= 0) { b.life = 0; break } else { b.pierceLeft-- }
         }
       }
@@ -223,6 +259,18 @@ export function createGame(canvas, callbacks = {}) {
     zombies = zombies.filter((z) => z.hp > 0)
     for (const p of particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt }
     particles = particles.filter((p) => p.life > 0)
+
+    // ---- 補血掉落 ----
+    for (const pk of pickups) {
+      if (Math.hypot(player.x - pk.x, player.y - pk.y) < player.r + pk.r) {
+        player.hp = Math.min(player.hpMax, player.hp + 20)
+        pk.dead = true
+      }
+    }
+    pickups = pickups.filter((pk) => !pk.dead)
+
+    // ---- 震動衰減 ----
+    if (shakeAmt > 0) shakeAmt = Math.max(0, shakeAmt - dt * 55)
 
     // ---- 升級 ----
     if (player.xp >= player.xpNext) startLevelUp()
@@ -260,6 +308,13 @@ export function createGame(canvas, callbacks = {}) {
     ctx.lineWidth = 1
     for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke() }
     for (let y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke() }
+
+    // 畫面震動（只套用在場景元素，不含背景與 UI）
+    ctx.save()
+    if (shakeAmt > 0) ctx.translate((Math.random() * 2 - 1) * shakeAmt, (Math.random() * 2 - 1) * shakeAmt)
+
+    // 補血愛心
+    for (const pk of pickups) drawEmoji('❤️', pk.x, pk.y, 26)
 
     for (const p of particles) {
       ctx.globalAlpha = Math.max(0, p.life * 2)
@@ -304,7 +359,9 @@ export function createGame(canvas, callbacks = {}) {
       drawWeapon(); ctx.restore()
     }
 
-    // 手機浮動搖桿
+    ctx.restore() // 結束震動位移
+
+    // 手機浮動搖桿（UI 不震動）
     if (isTouch && joy.id !== null) drawStick()
   }
 

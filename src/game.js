@@ -116,7 +116,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     const q = wave * wave
     if (type === 'boss') {
       const bt = BOSS_TYPES.find((b) => b.key === pendingBossType) || BOSS_TYPES[0]
-      let bhp = Math.round(2100 + wave * 400 + q * 16)
+      let bhp = Math.round(2900 + wave * 540 + q * 23)
       if (bt.key === 'charger') bhp = Math.round(bhp * 2) // 衝撞王血量加倍
       zombies.push({ x, y, r: 46, speed: Math.min(135, 60 + wave * 2), hp: bhp, hpMax: bhp, dmg: 85, value: 250, xp: 8, coin: 60, boss: true, kind: 'boss', bossType: bt.key, fireT: 2, cstate: 'chase', t: 0, emoji: bt.emoji })
       shake(16)

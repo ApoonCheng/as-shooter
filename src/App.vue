@@ -246,7 +246,7 @@ onUnmounted(() => {
           <div><b>自動</b> 瞄準射擊</div>
         </div>
         <p class="sub" style="margin-top:-8px">🔫 自動瞄準射擊，你只要專心移動閃殭屍！升級可三選一強化。<br />📱 手機：按住畫面拖曳即可移動</p>
-        <div class="coin-bal">🪙 {{ meta.coins }}</div>
+        <div class="coin-bal">💰 {{ meta.coins }}</div>
         <button class="big" @click="startGame">開始遊戲</button>
         <button class="big alt" @click="openShop">🛒 強化</button>
         <button v-if="hasLeaderboard" class="big alt" @click="openBoard">🏆 排行榜</button>
@@ -257,7 +257,7 @@ onUnmounted(() => {
       <!-- 強化商店 -->
       <div v-if="phase === 'shop'" class="overlay shop">
         <h1>🛒 永久強化</h1>
-        <div class="coin-bal">🪙 {{ meta.coins }}</div>
+        <div class="coin-bal">💰 {{ meta.coins }}</div>
         <div class="shop-list">
           <div v-for="u in upgrades" :key="u.id" class="shop-row">
             <span class="shop-icon">{{ u.icon }}</span>
@@ -270,7 +270,7 @@ onUnmounted(() => {
               class="buy"
               :disabled="meta.coins < costOf(u, meta.lv[u.id])"
               @click="buy(u)"
-            >🪙 {{ costOf(u, meta.lv[u.id]) }}</button>
+            >💰 {{ costOf(u, meta.lv[u.id]) }}</button>
             <span v-else class="maxed">MAX</span>
           </div>
         </div>
@@ -298,7 +298,7 @@ onUnmounted(() => {
         <h1>💀 GAME OVER</h1>
         <div class="final">{{ finalScore }}</div>
         <p class="sub">撐到第 {{ finalWave }} 波 · 得分 {{ finalScore }}</p>
-        <p class="coins-got">🪙 獲得 {{ coinsEarned }} 金幣（總計 {{ meta.coins }}）</p>
+        <p class="coins-got">💰 獲得 {{ coinsEarned }} 金幣（總計 {{ meta.coins }}）</p>
 
         <form v-if="hasLeaderboard && !submitted" class="submit-box" @submit.prevent="submitScore">
           <input v-model="playerName" maxlength="12" placeholder="輸入暱稱上榜" enterkeyhint="send" />

@@ -6,7 +6,7 @@ export const META_UPGRADES = [
   { id: 'hp', icon: '❤️', name: '最大血量', desc: '每級 +20 血', max: 12, baseCost: 60 },
   { id: 'rate', icon: '⚡', name: '攻速', desc: '每級 +5% 攻速', max: 10, baseCost: 80 },
   { id: 'speed', icon: '👟', name: '移速', desc: '每級 +4% 移速', max: 8, baseCost: 70 },
-  { id: 'coin', icon: '🪙', name: '金幣加成', desc: '每級 +15% 金幣', max: 8, baseCost: 50 },
+  { id: 'coin', icon: '💰', name: '金幣加成', desc: '每級 +15% 金幣', max: 8, baseCost: 50 },
 ]
 
 export function loadMeta() {

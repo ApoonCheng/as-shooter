@@ -34,10 +34,10 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   ]
 
   const UPGRADES = [
-    { id: 'dmg', icon: '💥', name: '傷害 +12', apply: (p) => { p.dmg += 12 } },
-    { id: 'rate', icon: '⚡', name: '攻速 +12%', apply: (p) => { p.fireCd = Math.max(0.06, p.fireCd * 0.88) } },
-    { id: 'multi', icon: '🔱', name: '多重彈 +1', apply: (p) => { p.multishot += 1 }, capped: (p) => p.multishot >= 5 },
-    { id: 'pierce', icon: '➡️', name: '穿透 +1', apply: (p) => { p.pierce += 1 }, capped: (p) => p.pierce >= 4 },
+    { id: 'dmg', icon: '💥', name: '傷害 +9', apply: (p) => { p.dmg += 9 } },
+    { id: 'rate', icon: '⚡', name: '攻速 +10%', apply: (p) => { p.fireCd = Math.max(0.09, p.fireCd * 0.9) } },
+    { id: 'multi', icon: '🔱', name: '多重彈 +1', apply: (p) => { p.multishot += 1 }, capped: (p) => p.multishot >= 4 },
+    { id: 'pierce', icon: '➡️', name: '穿透 +1', apply: (p) => { p.pierce += 1 }, capped: (p) => p.pierce >= 3 },
     { id: 'hp', icon: '❤️', name: '最大血量 +30（回滿）', apply: (p) => { p.hpMax += 30; p.hp = p.hpMax } },
     { id: 'explosive', icon: '🧨', name: '爆裂彈（命中爆炸）', apply: (p) => { p.explosive += 1 }, capped: (p) => p.explosive >= 3 },
     { id: 'poison', icon: '☠️', name: '毒彈（強力持續傷害）', apply: (p) => { p.poison += 1 }, capped: (p) => p.poison >= 3, weight: 1.5 },
@@ -209,19 +209,25 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   }
 
   function bossSummon(z) {
-    for (let i = 0; i < 3; i++) {
-      const ang = Math.random() * Math.PI * 2
-      const fhp = Math.round(45 + wave * 12 + wave * wave * 0.8)
-      zombies.push({ x: z.x + Math.cos(ang) * 50, y: z.y + Math.sin(ang) * 50, r: 13, speed: Math.min(360, 150 + wave * 7), hp: fhp, hpMax: fhp, dmg: 38, value: 15, xp: 1, coin: 3, kind: 'fast', emoji: '🧟‍♀️' })
+    const q = wave * wave
+    const near = () => ({ x: z.x + (Math.random() * 80 - 40), y: z.y + (Math.random() * 80 - 40) })
+    for (let i = 0; i < 2; i++) {
+      const p = near(); const fhp = Math.round(50 + wave * 14 + q * 1)
+      zombies.push({ x: p.x, y: p.y, r: 13, speed: Math.min(360, 150 + wave * 7), hp: fhp, hpMax: fhp, dmg: 38, value: 15, xp: 1, coin: 3, kind: 'fast', emoji: '🧟‍♀️' })
     }
-    shake(5)
+    const pt = near(); const thp = Math.round(260 + wave * 52 + q * 3.2)
+    zombies.push({ x: pt.x, y: pt.y, r: 27, speed: Math.min(160, 48 + wave * 2), hp: thp, hpMax: thp, dmg: 48, value: 40, xp: 3, coin: 6, kind: 'tank', emoji: '🧟‍♂️' })
+    const ps = near(); const shp = Math.round(100 + wave * 18 + q * 1.2)
+    zombies.push({ x: ps.x, y: ps.y, r: 15, speed: Math.min(170, 86 + wave * 2), hp: shp, hpMax: shp, dmg: 18, value: 20, xp: 2, coin: 4, kind: 'spitter', fireT: 1.5, emoji: '🤮' })
+    shake(6)
   }
 
   function bossRing(z) {
-    const cnt = 18, sp = 200
+    z.ringPhase = (z.ringPhase || 0) + 0.45 // 每次旋轉錯位，縫隙會移動更難閃
+    const cnt = 26, sp = 250
     for (let i = 0; i < cnt; i++) {
-      const a = (i / cnt) * Math.PI * 2
-      ebullets.push({ x: z.x, y: z.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 9, dmg: 18, life: 4 })
+      const a = z.ringPhase + (i / cnt) * Math.PI * 2
+      ebullets.push({ x: z.x, y: z.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 9, dmg: 20, life: 4.5 })
     }
     shake(8)
   }
@@ -230,11 +236,11 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     const cos = Math.cos(a), sin = Math.sin(a)
     z.fireT -= dt
     if (z.bossType === 'summon') {
-      z.x += cos * z.speed * 0.55 * dt; z.y += sin * z.speed * 0.55 * dt
-      if (z.fireT <= 0) { z.fireT = 3; bossSummon(z) }
+      z.x += cos * z.speed * 0.7 * dt; z.y += sin * z.speed * 0.7 * dt
+      if (z.fireT <= 0) { z.fireT = 2.2; bossSummon(z) }
     } else if (z.bossType === 'ring') {
-      z.x += cos * z.speed * 0.4 * dt; z.y += sin * z.speed * 0.4 * dt
-      if (z.fireT <= 0) { z.fireT = 2.4; bossRing(z) }
+      z.x += cos * z.speed * 0.7 * dt; z.y += sin * z.speed * 0.7 * dt
+      if (z.fireT <= 0) { z.fireT = 1.3; bossRing(z) }
     } else if (z.bossType === 'charger') {
       if (z.cstate === 'chase') { z.x += cos * z.speed * dt; z.y += sin * z.speed * dt; if (d < 340) { z.cstate = 'windup'; z.t = 0.6 } }
       else if (z.cstate === 'windup') { z.t -= dt; if (z.t <= 0) { z.cstate = 'dash'; z.t = 0.7; z.dvx = cos * 640; z.dvy = sin * 640 } }
@@ -516,8 +522,14 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
 
     for (const z of zombies) {
       if (z.cstate === 'windup' && (z.kind === 'charger' || z.bossType === 'charger')) {
-        ctx.strokeStyle = '#ff4d6d'; ctx.lineWidth = 3
-        ctx.beginPath(); ctx.arc(z.x, z.y, z.r + 7, 0, Math.PI * 2); ctx.stroke()
+        const wa = Math.atan2(player.y - z.y, player.x - z.x)
+        ctx.strokeStyle = 'rgba(255,77,109,0.45)'
+        ctx.lineWidth = z.boss ? 11 : 6
+        ctx.beginPath(); ctx.moveTo(z.x, z.y); ctx.lineTo(z.x + Math.cos(wa) * 470, z.y + Math.sin(wa) * 470); ctx.stroke()
+        if (Math.floor(performance.now() / 110) % 2 === 0) {
+          ctx.strokeStyle = '#ff4d6d'; ctx.lineWidth = 5
+          ctx.beginPath(); ctx.arc(z.x, z.y, z.r + 12, 0, Math.PI * 2); ctx.stroke()
+        }
       }
       if (z.poisonT > 0) { ctx.globalAlpha = 0.5; drawEmoji('☠️', z.x + z.r * 0.7, z.y - z.r * 0.7, 16); ctx.globalAlpha = 1 }
       drawEmoji(z.emoji, z.x, z.y, z.r * 2)

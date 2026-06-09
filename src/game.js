@@ -72,7 +72,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   function nextWave() {
     wave++
     const isBoss = wave % 5 === 0
-    spawnInterval = Math.max(0.12, 0.5 - wave * 0.035)
+    spawnInterval = Math.max(0.1, 0.48 - wave * 0.045)
     spawnQueue = []
     if (isBoss) {
       spawnQueue.push('boss')
@@ -82,7 +82,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       }
       sound.bossSpawn()
     } else {
-      const n = 8 + wave * 3
+      const n = 8 + wave * 3.5
       const pool = ['z', 'z', 'fast']
       if (wave >= 3) pool.push('tank', 'fast')
       if (wave >= 4) pool.push('spitter', 'exploder')
@@ -104,27 +104,27 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     else { x = -30; y = Math.random() * H }
     const q = wave * wave
     if (type === 'boss') {
-      const bhp = Math.round(1900 + wave * 360 + q * 14)
-      zombies.push({ x, y, r: 46, speed: Math.min(120, 56 + wave * 2), hp: bhp, hpMax: bhp, dmg: 75, value: 250, xp: 8, coin: 60, boss: true, kind: 'boss', fireT: 2, emoji: '👹' })
+      const bhp = Math.round(2300 + wave * 440 + q * 20)
+      zombies.push({ x, y, r: 46, speed: Math.min(135, 60 + wave * 2), hp: bhp, hpMax: bhp, dmg: 85, value: 250, xp: 8, coin: 60, boss: true, kind: 'boss', fireT: 2, emoji: '👹' })
       shake(16)
     } else if (type === 'charger') {
-      const chp = Math.round(90 + wave * 16 + q * 0.8)
-      zombies.push({ x, y, r: 16, speed: Math.min(150, 95 + wave * 2), hp: chp, hpMax: chp, dmg: 20, value: 25, xp: 2, coin: 5, kind: 'charger', cstate: 'chase', t: 0, emoji: '😡' })
+      const chp = Math.round(110 + wave * 20 + q * 1.1)
+      zombies.push({ x, y, r: 16, speed: Math.min(165, 100 + wave * 2), hp: chp, hpMax: chp, dmg: 20, value: 25, xp: 2, coin: 5, kind: 'charger', cstate: 'chase', t: 0, emoji: '😡' })
     } else if (type === 'tank') {
-      const thp = Math.round(240 + wave * 50 + q * 3)
-      zombies.push({ x, y, r: 27, speed: Math.min(140, 44 + wave * 2), hp: thp, hpMax: thp, dmg: 42, value: 40, xp: 3, coin: 6, kind: 'tank', emoji: '🧟‍♂️' })
+      const thp = Math.round(280 + wave * 60 + q * 4)
+      zombies.push({ x, y, r: 27, speed: Math.min(160, 48 + wave * 2), hp: thp, hpMax: thp, dmg: 48, value: 40, xp: 3, coin: 6, kind: 'tank', emoji: '🧟‍♂️' })
     } else if (type === 'exploder') {
-      const ehp = Math.round(100 + wave * 22 + q * 1.2)
-      zombies.push({ x, y, r: 15, speed: Math.min(200, 80 + wave * 4), hp: ehp, hpMax: ehp, dmg: 28, value: 20, xp: 2, coin: 4, kind: 'exploder', emoji: '🤢' })
+      const ehp = Math.round(120 + wave * 26 + q * 1.7)
+      zombies.push({ x, y, r: 15, speed: Math.min(215, 85 + wave * 4), hp: ehp, hpMax: ehp, dmg: 28, value: 20, xp: 2, coin: 4, kind: 'exploder', emoji: '🤢' })
     } else if (type === 'spitter') {
-      const shp = Math.round(90 + wave * 16 + q * 1)
-      zombies.push({ x, y, r: 15, speed: Math.min(160, 82 + wave * 2), hp: shp, hpMax: shp, dmg: 18, value: 20, xp: 2, coin: 4, kind: 'spitter', fireT: 1.8, emoji: '🤮' })
+      const shp = Math.round(110 + wave * 20 + q * 1.5)
+      zombies.push({ x, y, r: 15, speed: Math.min(170, 86 + wave * 2), hp: shp, hpMax: shp, dmg: 18, value: 20, xp: 2, coin: 4, kind: 'spitter', fireT: 1.8, emoji: '🤮' })
     } else if (type === 'fast') {
-      const fhp = Math.round(45 + wave * 12 + q * 0.7)
-      zombies.push({ x, y, r: 13, speed: Math.min(320, 145 + wave * 7), hp: fhp, hpMax: fhp, dmg: 34, value: 15, xp: 1, coin: 3, kind: 'fast', emoji: '🧟‍♀️' })
+      const fhp = Math.round(50 + wave * 14 + q * 1)
+      zombies.push({ x, y, r: 13, speed: Math.min(360, 150 + wave * 7), hp: fhp, hpMax: fhp, dmg: 38, value: 15, xp: 1, coin: 3, kind: 'fast', emoji: '🧟‍♀️' })
     } else {
-      const zhp = Math.round(80 + wave * 22 + q * 1.3)
-      zombies.push({ x, y, r: 17, speed: Math.min(210, 72 + wave * 6), hp: zhp, hpMax: zhp, dmg: 30, value: 10, xp: 1, coin: 2, kind: 'z', emoji: '🧟' })
+      const zhp = Math.round(90 + wave * 26 + q * 1.8)
+      zombies.push({ x, y, r: 17, speed: Math.min(235, 78 + wave * 6), hp: zhp, hpMax: zhp, dmg: 34, value: 10, xp: 1, coin: 2, kind: 'z', emoji: '🧟' })
     }
   }
 
@@ -188,7 +188,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
 
   function bossVolley(z) {
     const base = Math.atan2(player.y - z.y, player.x - z.x)
-    const n = 5, spread = 0.5, sp = 245
+    const n = 7, spread = 0.42, sp = 260
     for (let i = 0; i < n; i++) {
       const a = base - (spread * (n - 1)) / 2 + spread * i
       ebullets.push({ x: z.x, y: z.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 11, dmg: 22, life: 4 })
@@ -292,7 +292,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     } else if (spawnQueue.length) {
       spawnTimer -= dt
       if (spawnTimer <= 0) { spawnTimer = spawnInterval; spawnOne(spawnQueue.shift()) }
-    } else if (zombies.length === 0) { betweenWaves = true; betweenTimer = 1.6 }
+    } else if (zombies.length === 0) { betweenWaves = true; betweenTimer = 1.2 }
 
     // 殭屍 AI + 毒
     hurtSoundTimer -= dt
@@ -318,7 +318,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
         }
       } else {
         z.x += Math.cos(a) * z.speed * dt; z.y += Math.sin(a) * z.speed * dt
-        if (z.boss) { z.fireT -= dt; if (z.fireT <= 0) { z.fireT = 1.8; bossVolley(z) } }
+        if (z.boss) { z.fireT -= dt; if (z.fireT <= 0) { z.fireT = 1.4; bossVolley(z) } }
       }
       // 毒傷害
       if (z.poisonT > 0) { z.poisonT -= dt; hurtZombie(z, z.poisonDps * dt) }

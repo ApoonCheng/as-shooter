@@ -87,16 +87,11 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       sound.bossSpawn()
     } else {
       const n = 9 + wave * 5
-      for (let i = 0; i < n; i++) {
-        const r = Math.random()
-        let t = 'z'
-        if (wave >= 4 && r < 0.12) t = 'exploder'
-        else if (wave >= 5 && r < 0.24) t = 'charger'
-        else if (wave >= 3 && r < 0.40) t = 'spitter'
-        else if (wave >= 3 && r < 0.56) t = 'tank'
-        else if (r < 0.70) t = 'fast'
-        spawnQueue.push(t)
-      }
+      const pool = ['z', 'z', 'fast']
+      if (wave >= 3) pool.push('tank', 'fast')
+      if (wave >= 4) pool.push('spitter', 'exploder')
+      if (wave >= 5) pool.push('charger', 'tank')
+      for (let i = 0; i < n; i++) spawnQueue.push(pool[Math.floor(Math.random() * pool.length)])
     }
     spawnTimer = 0
     sound.waveStart()
@@ -127,7 +122,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       zombies.push({ x, y, r: 15, speed: 80 + wave * 4, hp: ehp, hpMax: ehp, dmg: 28, value: 20, xp: 2, coin: 4, kind: 'exploder', emoji: '🤢' })
     } else if (type === 'spitter') {
       const shp = 60 + wave * 13
-      zombies.push({ x, y, r: 15, speed: 82 + wave * 2, hp: shp, hpMax: shp, dmg: 18, value: 20, xp: 2, coin: 4, kind: 'spitter', fireT: 0.8, emoji: '🤮' })
+      zombies.push({ x, y, r: 15, speed: 82 + wave * 2, hp: shp, hpMax: shp, dmg: 18, value: 20, xp: 2, coin: 4, kind: 'spitter', fireT: 1.8, emoji: '🤮' })
     } else if (type === 'fast') {
       const fhp = 45 + wave * 12
       zombies.push({ x, y, r: 13, speed: 145 + wave * 7, hp: fhp, hpMax: fhp, dmg: 34, value: 15, xp: 1, coin: 3, kind: 'fast', emoji: '🧟‍♀️' })
@@ -263,7 +258,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
         if (d > 290) { z.x += Math.cos(a) * z.speed * dt; z.y += Math.sin(a) * z.speed * dt }
         else if (d < 230) { z.x -= Math.cos(a) * z.speed * dt; z.y -= Math.sin(a) * z.speed * dt }
         z.fireT -= dt
-        if (z.fireT <= 0) { z.fireT = 1.0; spitAt(z) }
+        if (z.fireT <= 0) { z.fireT = 1.6; spitAt(z) }
       } else if (z.kind === 'charger') {
         // 接近 → 蓄力 → 衝刺 → 自爆
         if (z.cstate === 'chase') {

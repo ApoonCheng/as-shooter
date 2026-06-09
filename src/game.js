@@ -174,7 +174,7 @@ export function createGame(canvas, callbacks = {}) {
     if (z.kind === 'exploder') explode(z)
     else { burst(z.x, z.y, z.boss ? '#ffd23f' : '#a855f7', z.boss ? 28 : 10); sound.kill() }
     if (z.boss) shake(18)
-    if (Math.random() < (z.boss ? 1 : 0.02)) pickups.push({ x: z.x, y: z.y, r: 14 })
+    if (Math.random() < (z.boss ? 1 : 0.004)) pickups.push({ x: z.x, y: z.y, r: 14 })
   }
 
   function update(dt) {
@@ -263,7 +263,7 @@ export function createGame(canvas, callbacks = {}) {
     // ---- 補血掉落 ----
     for (const pk of pickups) {
       if (Math.hypot(player.x - pk.x, player.y - pk.y) < player.r + pk.r) {
-        player.hp = Math.min(player.hpMax, player.hp + 20)
+        player.hp = Math.min(player.hpMax, player.hp + 10)
         pk.dead = true
       }
     }

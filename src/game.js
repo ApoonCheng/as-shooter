@@ -199,8 +199,8 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   function onKill(z) {
     if (z.dead) return
     z.dead = true
-    score += z.value
-    player.xp += z.xp
+    score += z.value || 0
+    player.xp += z.xp || 0
     coins += z.coin || 0
     killCount++
     if (z.boss) bossKills++

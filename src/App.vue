@@ -47,13 +47,14 @@ function buy(up) {
 let game = null
 let bannerTimer = null
 
+const fin = (v, d = 0) => (Number.isFinite(v) ? v : d)
 function onStats(s) {
-  score.value = s.score
-  wave.value = s.wave
-  hp.value = s.hp
-  hpMax.value = s.hpMax
-  level.value = s.level
-  xpRatio.value = s.xpRatio
+  score.value = fin(s.score)
+  wave.value = fin(s.wave)
+  hp.value = fin(s.hp)
+  hpMax.value = fin(s.hpMax, 100) || 100
+  level.value = fin(s.level, 1)
+  xpRatio.value = fin(s.xpRatio)
 }
 
 function onLevelUp(choices) {

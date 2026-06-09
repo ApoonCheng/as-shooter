@@ -21,12 +21,17 @@ export const ACHIEVEMENTS = [
   { id: 'games10', icon: '🎮', name: '樂此不疲', desc: '遊玩 10 場', stat: 'games', goal: 10, reward: 200 },
 ]
 
+const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0)
+
 export function loadMeta() {
   let m
   try { m = JSON.parse(localStorage.getItem(KEY)) } catch { /* ignore */ }
-  if (!m || !m.lv) m = { coins: 0, lv: {} }
-  for (const u of META_UPGRADES) if (m.lv[u.id] == null) m.lv[u.id] = 0
-  if (!m.stats) m.stats = { kills: 0, games: 0, bestWave: 0, bosses: 0 }
+  if (!m || typeof m !== 'object') m = {}
+  if (!m.lv || typeof m.lv !== 'object') m.lv = {}
+  m.coins = num(m.coins)
+  for (const u of META_UPGRADES) m.lv[u.id] = num(m.lv[u.id]) // 淨化，避免 NaN
+  if (!m.stats || typeof m.stats !== 'object') m.stats = {}
+  for (const k of ['kills', 'games', 'bestWave', 'bosses']) m.stats[k] = num(m.stats[k])
   if (!Array.isArray(m.done)) m.done = []
   return m
 }

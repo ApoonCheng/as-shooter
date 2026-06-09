@@ -34,7 +34,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     { id: 'hp', icon: '❤️', name: '最大血量 +30（回滿）', apply: (p) => { p.hpMax += 30; p.hp = p.hpMax } },
     { id: 'explosive', icon: '🧨', name: '爆裂彈（命中爆炸）', apply: (p) => { p.explosive += 1 }, capped: (p) => p.explosive >= 3 },
     { id: 'poison', icon: '☠️', name: '毒彈（持續傷害）', apply: (p) => { p.poison += 1 }, capped: (p) => p.poison >= 3 },
-    { id: 'lifesteal', icon: '🩸', name: '吸血 +3（擊殺回血）', apply: (p) => { p.lifesteal += 3 } },
+    { id: 'lifesteal', icon: '🩸', name: '吸血 +1（擊殺回血）', apply: (p) => { p.lifesteal += 1 }, capped: (p) => p.lifesteal >= 4 },
     { id: 'bounce', icon: '🪃', name: '彈跳 +1（撞牆反彈）', apply: (p) => { p.bounce += 1 }, capped: (p) => p.bounce >= 3 },
     { id: 'orbit', icon: '🛡️', name: '環繞檳榔 +1', apply: (p) => { p.orbit += 1 }, capped: (p) => p.orbit >= 4 },
   ]
@@ -214,16 +214,18 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
 
   function rollDrop(z) {
     if (z.boss) {
-      pickups.push({ x: z.x - 24, y: z.y, r: 16, type: 'heart' })
-      pickups.push({ x: z.x + 24, y: z.y, r: 16, type: Math.random() < 0.5 ? 'rage' : 'star' })
+      pickups.push({ x: z.x - 24, y: z.y, r: 16, type: 'heart', life: 10 })
+      pickups.push({ x: z.x + 24, y: z.y, r: 16, type: Math.random() < 0.5 ? 'rage' : 'star', life: 10 })
       return
     }
     const r = Math.random()
-    if (r < 0.012) pickups.push({ x: z.x, y: z.y, r: 14, type: 'heart' })
-    else if (r < 0.017) pickups.push({ x: z.x, y: z.y, r: 14, type: 'bomb' })
-    else if (r < 0.021) pickups.push({ x: z.x, y: z.y, r: 14, type: 'star' })
-    else if (r < 0.026) pickups.push({ x: z.x, y: z.y, r: 14, type: 'rage' })
-    else if (r < 0.034) pickups.push({ x: z.x, y: z.y, r: 14, type: 'coin' })
+    let type = null
+    if (r < 0.012) type = 'heart'
+    else if (r < 0.017) type = 'bomb'
+    else if (r < 0.021) type = 'star'
+    else if (r < 0.026) type = 'rage'
+    else if (r < 0.034) type = 'coin'
+    if (type) pickups.push({ x: z.x, y: z.y, r: 14, type, life: 8 })
   }
 
   function applyPickup(pk) {
@@ -371,11 +373,12 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       }
     }
 
-    // 道具
+    // 道具（會逐漸消失）
     for (const pk of pickups) {
+      pk.life -= dt
       if (Math.hypot(player.x - pk.x, player.y - pk.y) < player.r + pk.r) { applyPickup(pk); pk.dead = true }
     }
-    pickups = pickups.filter((pk) => !pk.dead)
+    pickups = pickups.filter((pk) => !pk.dead && pk.life > 0)
 
     bullets = bullets.filter((b) => b.life > 0 && b.x > -20 && b.x < W + 20 && b.y > -20 && b.y < H + 20)
     zombies = zombies.filter((z) => z.hp > 0)
@@ -429,7 +432,10 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     ctx.save()
     if (shakeAmt > 0) ctx.translate((Math.random() * 2 - 1) * shakeAmt, (Math.random() * 2 - 1) * shakeAmt)
 
-    for (const pk of pickups) drawEmoji(PICK_EMOJI[pk.type] || '❔', pk.x, pk.y, 26)
+    for (const pk of pickups) {
+      if (pk.life < 2 && Math.floor(pk.life * 6) % 2 === 0) continue // 快消失時閃爍
+      drawEmoji(PICK_EMOJI[pk.type] || '❔', pk.x, pk.y, 26)
+    }
 
     for (const p of particles) {
       ctx.globalAlpha = Math.max(0, p.life * 2)

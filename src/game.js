@@ -41,7 +41,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     { id: 'hp', icon: '❤️', name: '最大血量 +30（補30血）', apply: (p) => { p.hpMax += 30; p.hp = Math.min(p.hpMax, p.hp + 30) } },
     { id: 'explosive', icon: '🧨', name: '爆裂彈（命中爆炸）', apply: (p) => { p.explosive += 1 }, capped: (p) => p.explosive >= 3 },
     { id: 'poison', icon: '☠️', name: '毒彈（強力持續傷害）', apply: (p) => { p.poison += 1 }, capped: (p) => p.poison >= 3, weight: 1.5 },
-    { id: 'lifesteal', icon: '🩸', name: '吸血 +1（擊殺回血）', apply: (p) => { p.lifesteal += 1 }, capped: (p) => p.lifesteal >= 4 },
+    { id: 'lifesteal', icon: '🩸', name: '吸血 +0.4（擊殺回血）', apply: (p) => { p.lifesteal += 0.4 }, capped: (p) => p.lifesteal >= 2 },
     { id: 'bounce', icon: '🪃', name: '彈跳 +1（撞牆反彈）', apply: (p) => { p.bounce += 1 }, capped: (p) => p.bounce >= 3 },
     { id: 'orbit', icon: '🛡️', name: '環繞檳榔 +1（高傷護體）', apply: (p) => { p.orbit += 1 }, capped: (p) => p.orbit >= 4, weight: 1.5 },
   ]

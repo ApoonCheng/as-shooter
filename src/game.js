@@ -1,8 +1,6 @@
 import { Sound } from './sound'
 
-// 美秀打殭屍 — 自動瞄準射擊 + 升級養成（Archero 風格）
-// 移動：WASD / 方向鍵（電腦）、觸控浮動搖桿（手機）
-// 射擊：自動鎖定最近殭屍開火
+// 美秀打殭屍 — 自動瞄準射擊 + 升級養成 + 特殊技能 + 道具掉落
 export function createGame(canvas, callbacks = {}, opts = {}) {
   const ctx = canvas.getContext('2d')
   const W = canvas.width
@@ -19,21 +17,26 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   const mouse = { x: W / 2, y: H / 2 }
   const isTouch = window.matchMedia('(pointer: coarse)').matches
   const MAXR = 55
-  const joy = { id: null, ox: 0, oy: 0, x: 0, y: 0 } // 浮動搖桿
+  const ORB_R = 56
+  const joy = { id: null, ox: 0, oy: 0, x: 0, y: 0 }
 
   let player, bullets, zombies, particles, pickups, ebullets
   let wave, spawnQueue, spawnTimer, spawnInterval
   let betweenWaves, betweenTimer
   let score, running, raf, lastTime, hurtSoundTimer
-  let levelingUp, shakeAmt, coins
+  let levelingUp, shakeAmt, coins, killCount, bossKills, orbAngle
 
-  // 升級項目（局內養成）
   const UPGRADES = [
     { id: 'dmg', icon: '💥', name: '傷害 +12', apply: (p) => { p.dmg += 12 } },
     { id: 'rate', icon: '⚡', name: '攻速 +12%', apply: (p) => { p.fireCd = Math.max(0.06, p.fireCd * 0.88) } },
     { id: 'multi', icon: '🔱', name: '多重彈 +1', apply: (p) => { p.multishot += 1 }, capped: (p) => p.multishot >= 5 },
     { id: 'pierce', icon: '➡️', name: '穿透 +1', apply: (p) => { p.pierce += 1 }, capped: (p) => p.pierce >= 4 },
     { id: 'hp', icon: '❤️', name: '最大血量 +30（回滿）', apply: (p) => { p.hpMax += 30; p.hp = p.hpMax } },
+    { id: 'explosive', icon: '🧨', name: '爆裂彈（命中爆炸）', apply: (p) => { p.explosive += 1 }, capped: (p) => p.explosive >= 3 },
+    { id: 'poison', icon: '☠️', name: '毒彈（持續傷害）', apply: (p) => { p.poison += 1 }, capped: (p) => p.poison >= 3 },
+    { id: 'lifesteal', icon: '🩸', name: '吸血 +3（擊殺回血）', apply: (p) => { p.lifesteal += 3 } },
+    { id: 'bounce', icon: '🪃', name: '彈跳 +1（撞牆反彈）', apply: (p) => { p.bounce += 1 }, capped: (p) => p.bounce >= 3 },
+    { id: 'orbit', icon: '🛡️', name: '環繞檳榔 +1', apply: (p) => { p.orbit += 1 }, capped: (p) => p.orbit >= 4 },
   ]
 
   function reset() {
@@ -42,25 +45,17 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       x: W / 2, y: H / 2, r: 13, angle: 0, cd: 0,
       hp: hpMax, hpMax, speed: 230 * (bonus.speedMul || 1),
       dmg: 26 * (bonus.dmgMul || 1), fireCd: 0.18 * (bonus.rateMul || 1),
-      bulletSpeed: 620, multishot: 1, pierce: 0, regen: 0,
+      bulletSpeed: 620, multishot: 1, pierce: 0,
+      explosive: 0, poison: 0, lifesteal: 0, bounce: 0, orbit: 0,
+      invincT: 0, rageT: 0,
       xp: 0, level: 1, xpNext: 5,
     }
-    coins = 0
-    bullets = []
-    zombies = []
-    particles = []
-    pickups = []
-    ebullets = []
-    shakeAmt = 0
-    wave = 0
-    spawnQueue = []
-    spawnTimer = 0
-    spawnInterval = 0.7
-    betweenWaves = true
-    betweenTimer = 1.5
-    score = 0
+    bullets = []; zombies = []; particles = []; pickups = []; ebullets = []
+    coins = 0; killCount = 0; bossKills = 0; orbAngle = 0
+    shakeAmt = 0; levelingUp = false
+    wave = 0; spawnQueue = []; spawnTimer = 0; spawnInterval = 0.7
+    betweenWaves = true; betweenTimer = 1.5
     hurtSoundTimer = 0
-    levelingUp = false
     joy.id = null
     pushStats()
   }
@@ -70,6 +65,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       score, wave,
       hp: Math.max(0, Math.ceil(player.hp)), hpMax: player.hpMax,
       level: player.level, xpRatio: Math.min(1, player.xp / player.xpNext),
+      invinc: player.invincT > 0, rage: player.rageT > 0,
     })
   }
 
@@ -106,47 +102,44 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     else if (edge === 1) { x = W + 30; y = Math.random() * H }
     else if (edge === 2) { x = Math.random() * W; y = H + 30 }
     else { x = -30; y = Math.random() * H }
-
+    const q = wave * wave
     if (type === 'boss') {
-      const bhp = Math.round(1900 + wave * 360 + wave * wave * 14)
+      const bhp = Math.round(1900 + wave * 360 + q * 14)
       zombies.push({ x, y, r: 46, speed: Math.min(120, 56 + wave * 2), hp: bhp, hpMax: bhp, dmg: 75, value: 250, xp: 8, coin: 60, boss: true, kind: 'boss', fireT: 2, emoji: '👹' })
       shake(16)
     } else if (type === 'charger') {
-      const chp = Math.round(90 + wave * 16 + wave * wave * 0.8)
+      const chp = Math.round(90 + wave * 16 + q * 0.8)
       zombies.push({ x, y, r: 16, speed: Math.min(150, 95 + wave * 2), hp: chp, hpMax: chp, dmg: 20, value: 25, xp: 2, coin: 5, kind: 'charger', cstate: 'chase', t: 0, emoji: '😡' })
     } else if (type === 'tank') {
-      const thp = Math.round(240 + wave * 50 + wave * wave * 3)
+      const thp = Math.round(240 + wave * 50 + q * 3)
       zombies.push({ x, y, r: 27, speed: Math.min(140, 44 + wave * 2), hp: thp, hpMax: thp, dmg: 42, value: 40, xp: 3, coin: 6, kind: 'tank', emoji: '🧟‍♂️' })
     } else if (type === 'exploder') {
-      const ehp = Math.round(100 + wave * 22 + wave * wave * 1.2)
+      const ehp = Math.round(100 + wave * 22 + q * 1.2)
       zombies.push({ x, y, r: 15, speed: Math.min(200, 80 + wave * 4), hp: ehp, hpMax: ehp, dmg: 28, value: 20, xp: 2, coin: 4, kind: 'exploder', emoji: '🤢' })
     } else if (type === 'spitter') {
-      const shp = Math.round(90 + wave * 16 + wave * wave * 1)
+      const shp = Math.round(90 + wave * 16 + q * 1)
       zombies.push({ x, y, r: 15, speed: Math.min(160, 82 + wave * 2), hp: shp, hpMax: shp, dmg: 18, value: 20, xp: 2, coin: 4, kind: 'spitter', fireT: 1.8, emoji: '🤮' })
     } else if (type === 'fast') {
-      const fhp = Math.round(45 + wave * 12 + wave * wave * 0.7)
+      const fhp = Math.round(45 + wave * 12 + q * 0.7)
       zombies.push({ x, y, r: 13, speed: Math.min(320, 145 + wave * 7), hp: fhp, hpMax: fhp, dmg: 34, value: 15, xp: 1, coin: 3, kind: 'fast', emoji: '🧟‍♀️' })
     } else {
-      const zhp = Math.round(80 + wave * 22 + wave * wave * 1.3)
+      const zhp = Math.round(80 + wave * 22 + q * 1.3)
       zombies.push({ x, y, r: 17, speed: Math.min(210, 72 + wave * 6), hp: zhp, hpMax: zhp, dmg: 30, value: 10, xp: 1, coin: 2, kind: 'z', emoji: '🧟' })
     }
   }
 
   function fire() {
     if (player.cd > 0) return
-    player.cd = player.fireCd
+    player.cd = player.fireCd * (player.rageT > 0 ? 0.5 : 1)
     const n = player.multishot
     const spread = 0.14
     const base = player.angle - (spread * (n - 1)) / 2
     for (let i = 0; i < n; i++) {
       const a = base + spread * i
       bullets.push({
-        x: player.x + Math.cos(a) * player.r,
-        y: player.y + Math.sin(a) * player.r,
-        vx: Math.cos(a) * player.bulletSpeed,
-        vy: Math.sin(a) * player.bulletSpeed,
-        r: 6, life: 1.2, dmg: player.dmg,
-        pierceLeft: player.pierce, hit: new Set(),
+        x: player.x + Math.cos(a) * player.r, y: player.y + Math.sin(a) * player.r,
+        vx: Math.cos(a) * player.bulletSpeed, vy: Math.sin(a) * player.bulletSpeed,
+        r: 6, life: 1.4, dmg: player.dmg, pierceLeft: player.pierce, bounceLeft: player.bounce, hit: new Set(),
       })
     }
     sound.shoot()
@@ -166,11 +159,25 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     burst(x, y, color || '#ff7a3b', 30)
     shake(12)
     sound.kill()
-    if (Math.hypot(player.x - x, player.y - y) < radius + player.r) {
+    if (player.invincT <= 0 && Math.hypot(player.x - x, player.y - y) < radius + player.r) {
       player.hp -= dmg
       sound.hurt()
       if (player.hp <= 0) { player.hp = 0; gameOver() }
     }
+  }
+
+  function enemyExplode(x, y, radius, dmg) {
+    burst(x, y, '#ffb13b', 10)
+    for (const z of zombies) {
+      if (z.dead) continue
+      if (Math.hypot(z.x - x, z.y - y) < radius + z.r) hurtZombie(z, dmg)
+    }
+  }
+
+  function hurtZombie(z, dmg) {
+    if (z.dead) return
+    z.hp -= dmg
+    if (z.hp <= 0) onKill(z)
   }
 
   function spitAt(z) {
@@ -190,18 +197,54 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   }
 
   function onKill(z) {
+    if (z.dead) return
+    z.dead = true
     score += z.value
     player.xp += z.xp
     coins += z.coin || 0
+    killCount++
+    if (z.boss) bossKills++
+    if (player.lifesteal) player.hp = Math.min(player.hpMax, player.hp + player.lifesteal)
     if (z.kind === 'exploder') explodeAt(z.x, z.y, 82, 30)
     else if (z.kind === 'charger') explodeAt(z.x, z.y, 96, 28, '#ff4d6d')
     else { burst(z.x, z.y, z.boss ? '#ffd23f' : '#a855f7', z.boss ? 28 : 10); sound.kill() }
     if (z.boss) shake(18)
-    if (Math.random() < (z.boss ? 1 : 0.012)) pickups.push({ x: z.x, y: z.y, r: 14 })
+    rollDrop(z)
+  }
+
+  function rollDrop(z) {
+    if (z.boss) {
+      pickups.push({ x: z.x - 24, y: z.y, r: 16, type: 'heart' })
+      pickups.push({ x: z.x + 24, y: z.y, r: 16, type: Math.random() < 0.5 ? 'rage' : 'star' })
+      return
+    }
+    const r = Math.random()
+    if (r < 0.012) pickups.push({ x: z.x, y: z.y, r: 14, type: 'heart' })
+    else if (r < 0.017) pickups.push({ x: z.x, y: z.y, r: 14, type: 'bomb' })
+    else if (r < 0.021) pickups.push({ x: z.x, y: z.y, r: 14, type: 'star' })
+    else if (r < 0.026) pickups.push({ x: z.x, y: z.y, r: 14, type: 'rage' })
+    else if (r < 0.034) pickups.push({ x: z.x, y: z.y, r: 14, type: 'coin' })
+  }
+
+  function applyPickup(pk) {
+    if (pk.type === 'heart') player.hp = Math.min(player.hpMax, player.hp + 12)
+    else if (pk.type === 'coin') coins += 25
+    else if (pk.type === 'star') player.invincT = 6
+    else if (pk.type === 'rage') player.rageT = 7
+    else if (pk.type === 'bomb') {
+      shake(20)
+      burst(player.x, player.y, '#ffd23f', 30)
+      for (const z of zombies) if (!z.dead) hurtZombie(z, 600)
+    }
   }
 
   function update(dt) {
-    // ---- 移動 ----
+    // 計時器
+    if (player.invincT > 0) player.invincT -= dt
+    if (player.rageT > 0) player.rageT -= dt
+    orbAngle += dt * 2.6
+
+    // 移動
     let dx = 0, dy = 0, factor = 1
     if (joy.id !== null) {
       dx = joy.x - joy.ox; dy = joy.y - joy.oy
@@ -213,54 +256,54 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       if (keys['a'] || keys['arrowleft']) dx -= 1
       if (keys['d'] || keys['arrowright']) dx += 1
     }
+    const spd = player.speed * (player.rageT > 0 ? 1.4 : 1)
     if (dx || dy) {
       const len = Math.hypot(dx, dy)
-      player.x = Math.max(player.r, Math.min(W - player.r, player.x + (dx / len) * player.speed * factor * dt))
-      player.y = Math.max(player.r, Math.min(H - player.r, player.y + (dy / len) * player.speed * factor * dt))
+      player.x = Math.max(player.r, Math.min(W - player.r, player.x + (dx / len) * spd * factor * dt))
+      player.y = Math.max(player.r, Math.min(H - player.r, player.y + (dy / len) * spd * factor * dt))
     }
 
-    // ---- 自動瞄準最近殭屍 + 開火 ----
+    // 自動瞄準 + 開火
     player.cd -= dt
     let nearest = null, nd = Infinity
     for (const z of zombies) {
       const d = (z.x - player.x) ** 2 + (z.y - player.y) ** 2
       if (d < nd) { nd = d; nearest = z }
     }
-    if (nearest) {
-      player.angle = Math.atan2(nearest.y - player.y, nearest.x - player.x)
-      fire()
+    if (nearest) { player.angle = Math.atan2(nearest.y - player.y, nearest.x - player.x); fire() }
+
+    // 子彈移動（含撞牆反彈）
+    for (const b of bullets) {
+      b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt
+      if (b.bounceLeft > 0) {
+        if (b.x < b.r) { b.x = b.r; b.vx = -b.vx; b.bounceLeft-- }
+        else if (b.x > W - b.r) { b.x = W - b.r; b.vx = -b.vx; b.bounceLeft-- }
+        if (b.y < b.r) { b.y = b.r; b.vy = -b.vy; b.bounceLeft-- }
+        else if (b.y > H - b.r) { b.y = H - b.r; b.vy = -b.vy; b.bounceLeft-- }
+      }
     }
 
-    // ---- 回血 ----
-    if (player.regen) player.hp = Math.min(player.hpMax, player.hp + player.regen * dt)
-
-    // ---- 子彈移動 ----
-    for (const b of bullets) { b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt }
-
-    // ---- 生成波次 ----
+    // 波次
     if (betweenWaves) {
       betweenTimer -= dt
       if (betweenTimer <= 0) { betweenWaves = false; nextWave() }
     } else if (spawnQueue.length) {
       spawnTimer -= dt
       if (spawnTimer <= 0) { spawnTimer = spawnInterval; spawnOne(spawnQueue.shift()) }
-    } else if (zombies.length === 0) {
-      betweenWaves = true; betweenTimer = 1.2
-    }
+    } else if (zombies.length === 0) { betweenWaves = true; betweenTimer = 1.6 }
 
-    // ---- 殭屍 AI ----
+    // 殭屍 AI + 毒
     hurtSoundTimer -= dt
     for (const z of zombies) {
+      if (z.dead) continue
       const a = Math.atan2(player.y - z.y, player.x - z.x)
       const d = Math.hypot(player.x - z.x, player.y - z.y)
       if (z.kind === 'spitter') {
-        // 保持距離、定時吐口水
         if (d > 290) { z.x += Math.cos(a) * z.speed * dt; z.y += Math.sin(a) * z.speed * dt }
         else if (d < 230) { z.x -= Math.cos(a) * z.speed * dt; z.y -= Math.sin(a) * z.speed * dt }
         z.fireT -= dt
         if (z.fireT <= 0) { z.fireT = 1.6; spitAt(z) }
       } else if (z.kind === 'charger') {
-        // 接近 → 蓄力 → 衝刺 → 自爆
         if (z.cstate === 'chase') {
           z.x += Math.cos(a) * z.speed * dt; z.y += Math.sin(a) * z.speed * dt
           if (d < 250) { z.cstate = 'windup'; z.t = 0.45 }
@@ -269,69 +312,78 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
           if (z.t <= 0) { z.cstate = 'dash'; z.t = 0.55; z.dvx = Math.cos(a) * 440; z.dvy = Math.sin(a) * 440 }
         } else {
           z.x += z.dvx * dt; z.y += z.dvy * dt; z.t -= dt
-          if (d < player.r + z.r || z.t <= 0) { explodeAt(z.x, z.y, 96, 28, '#ff4d6d'); z.hp = 0 }
+          if (d < player.r + z.r || z.t <= 0) { explodeAt(z.x, z.y, 96, 28, '#ff4d6d'); z.dead = true; z.hp = 0 }
         }
       } else {
-        z.x += Math.cos(a) * z.speed * dt
-        z.y += Math.sin(a) * z.speed * dt
+        z.x += Math.cos(a) * z.speed * dt; z.y += Math.sin(a) * z.speed * dt
         if (z.boss) { z.fireT -= dt; if (z.fireT <= 0) { z.fireT = 1.8; bossVolley(z) } }
       }
-      if (z.hp > 0 && d < player.r + z.r) {
+      // 毒傷害
+      if (z.poisonT > 0) { z.poisonT -= dt; hurtZombie(z, z.poisonDps * dt) }
+      // 接觸玩家
+      if (!z.dead && player.invincT <= 0 && d < player.r + z.r) {
         player.hp -= z.dmg * dt
         if (hurtSoundTimer <= 0) { sound.hurt(); hurtSoundTimer = 0.35 }
         if (player.hp <= 0) { player.hp = 0; return gameOver() }
       }
     }
 
-    // ---- 敵方口水彈 ----
-    for (const eb of ebullets) {
-      eb.x += eb.vx * dt; eb.y += eb.vy * dt; eb.life -= dt
-      if (Math.hypot(player.x - eb.x, player.y - eb.y) < player.r + eb.r) {
-        player.hp -= eb.dmg
-        eb.life = 0
-        if (hurtSoundTimer <= 0) { sound.hurt(); hurtSoundTimer = 0.2 }
-        if (player.hp <= 0) { player.hp = 0; return gameOver() }
-      }
-    }
-    ebullets = ebullets.filter((eb) => eb.life > 0 && eb.x > -20 && eb.x < W + 20 && eb.y > -20 && eb.y < H + 20)
-
-    // ---- 子彈 vs 殭屍（含穿透）----
-    for (const b of bullets) {
-      if (b.life <= 0) continue
-      for (const z of zombies) {
-        if (z.hp <= 0 || b.hit.has(z)) continue
-        if (Math.hypot(b.x - z.x, b.y - z.y) < b.r + z.r) {
-          z.hp -= b.dmg
-          b.hit.add(z)
-          burst(b.x, b.y, '#ff8fcf', 4)
-          sound.hit()
-          if (z.hp <= 0) onKill(z)
-          if (b.pierceLeft <= 0) { b.life = 0; break } else { b.pierceLeft-- }
+    // 環繞檳榔傷害
+    if (player.orbit > 0) {
+      for (let i = 0; i < player.orbit; i++) {
+        const a = orbAngle + (i * Math.PI * 2) / player.orbit
+        const ox = player.x + Math.cos(a) * ORB_R, oy = player.y + Math.sin(a) * ORB_R
+        for (const z of zombies) {
+          if (z.dead) continue
+          if (Math.hypot(z.x - ox, z.y - oy) < 13 + z.r) hurtZombie(z, player.dmg * 1.4 * dt)
         }
       }
     }
 
-    // ---- 清除 ----
+    // 敵方口水彈
+    for (const eb of ebullets) {
+      eb.x += eb.vx * dt; eb.y += eb.vy * dt; eb.life -= dt
+      if (Math.hypot(player.x - eb.x, player.y - eb.y) < player.r + eb.r) {
+        eb.life = 0
+        if (player.invincT <= 0) {
+          player.hp -= eb.dmg
+          if (hurtSoundTimer <= 0) { sound.hurt(); hurtSoundTimer = 0.2 }
+          if (player.hp <= 0) { player.hp = 0; return gameOver() }
+        }
+      }
+    }
+    ebullets = ebullets.filter((eb) => eb.life > 0 && eb.x > -20 && eb.x < W + 20 && eb.y > -20 && eb.y < H + 20)
+
+    // 子彈 vs 殭屍（爆裂、毒、穿透）
+    for (const b of bullets) {
+      if (b.life <= 0) continue
+      for (const z of zombies) {
+        if (z.dead || b.hit.has(z)) continue
+        if (Math.hypot(b.x - z.x, b.y - z.y) < b.r + z.r) {
+          b.hit.add(z)
+          burst(b.x, b.y, '#ff8fcf', 4)
+          sound.hit()
+          if (player.poison) { z.poisonT = 2; z.poisonDps = player.dmg * 0.25 * player.poison }
+          hurtZombie(z, b.dmg)
+          if (player.explosive) enemyExplode(b.x, b.y, 34 + player.explosive * 14, b.dmg * 0.5)
+          if (b.pierceLeft <= 0) { b.life = 0; break } else b.pierceLeft--
+        }
+      }
+    }
+
+    // 道具
+    for (const pk of pickups) {
+      if (Math.hypot(player.x - pk.x, player.y - pk.y) < player.r + pk.r) { applyPickup(pk); pk.dead = true }
+    }
+    pickups = pickups.filter((pk) => !pk.dead)
+
     bullets = bullets.filter((b) => b.life > 0 && b.x > -20 && b.x < W + 20 && b.y > -20 && b.y < H + 20)
     zombies = zombies.filter((z) => z.hp > 0)
     for (const p of particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt }
     particles = particles.filter((p) => p.life > 0)
 
-    // ---- 補血掉落 ----
-    for (const pk of pickups) {
-      if (Math.hypot(player.x - pk.x, player.y - pk.y) < player.r + pk.r) {
-        player.hp = Math.min(player.hpMax, player.hp + 10)
-        pk.dead = true
-      }
-    }
-    pickups = pickups.filter((pk) => !pk.dead)
-
-    // ---- 震動衰減 ----
     if (shakeAmt > 0) shakeAmt = Math.max(0, shakeAmt - dt * 55)
-
-    // ---- 升級 ----
     if (player.xp >= player.xpNext) startLevelUp()
-
     pushStats()
   }
 
@@ -339,9 +391,9 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     levelingUp = true
     const pool = UPGRADES.filter((u) => !(u.capped && u.capped(player)))
     const choices = []
-    for (let i = 0; i < 3 && pool.length; i++) {
-      const idx = Math.floor(Math.random() * pool.length)
-      const u = pool.splice(idx, 1)[0]
+    const tmp = [...pool]
+    for (let i = 0; i < 3 && tmp.length; i++) {
+      const u = tmp.splice(Math.floor(Math.random() * tmp.length), 1)[0]
       choices.push({ id: u.id, icon: u.icon, name: u.name })
     }
     callbacks.onLevelUp?.(choices)
@@ -355,8 +407,16 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     player.xpNext = Math.round(5 + player.level * 3)
     levelingUp = false
     pushStats()
-    if (player.xp >= player.xpNext) startLevelUp() // 連續升級
+    if (player.xp >= player.xpNext) startLevelUp()
   }
+
+  function drawEmoji(emoji, x, y, size) {
+    ctx.font = `${size}px serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText(emoji, x, y)
+  }
+
+  const PICK_EMOJI = { heart: '❤️', bomb: '💣', star: '⭐', rage: '⚡', coin: '💰' }
 
   function render() {
     ctx.fillStyle = '#16111f'
@@ -366,12 +426,10 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke() }
     for (let y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke() }
 
-    // 畫面震動（只套用在場景元素，不含背景與 UI）
     ctx.save()
     if (shakeAmt > 0) ctx.translate((Math.random() * 2 - 1) * shakeAmt, (Math.random() * 2 - 1) * shakeAmt)
 
-    // 補血愛心
-    for (const pk of pickups) drawEmoji('❤️', pk.x, pk.y, 26)
+    for (const pk of pickups) drawEmoji(PICK_EMOJI[pk.type] || '❔', pk.x, pk.y, 26)
 
     for (const p of particles) {
       ctx.globalAlpha = Math.max(0, p.life * 2)
@@ -380,32 +438,28 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     }
     ctx.globalAlpha = 1
 
-    // 子彈（檳榔）
+    for (const eb of ebullets) {
+      ctx.fillStyle = '#8ed13b'; ctx.shadowColor = '#3f7a25'; ctx.shadowBlur = 6
+      ctx.beginPath(); ctx.arc(eb.x, eb.y, eb.r, 0, Math.PI * 2); ctx.fill()
+    }
+    ctx.shadowBlur = 0
+
     for (const b of bullets) {
       const a = Math.atan2(b.vy, b.vx)
       ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(a)
       ctx.fillStyle = '#6cb83f'
       ctx.beginPath(); ctx.ellipse(0, 0, b.r + 4, b.r, 0, 0, Math.PI * 2); ctx.fill()
-      ctx.strokeStyle = '#3f7a25'; ctx.lineWidth = 1.2; ctx.stroke()
       ctx.fillStyle = '#e3ecb4'
       ctx.beginPath(); ctx.ellipse(b.r + 3, 0, 2.6, 3, 0, 0, Math.PI * 2); ctx.fill()
       ctx.restore()
     }
 
-    // 敵方口水彈
-    for (const eb of ebullets) {
-      ctx.fillStyle = '#8ed13b'
-      ctx.shadowColor = '#3f7a25'; ctx.shadowBlur = 6
-      ctx.beginPath(); ctx.arc(eb.x, eb.y, eb.r, 0, Math.PI * 2); ctx.fill()
-    }
-    ctx.shadowBlur = 0
-
-    // 殭屍
     for (const z of zombies) {
       if (z.kind === 'charger' && z.cstate === 'windup') {
         ctx.strokeStyle = '#ff4d6d'; ctx.lineWidth = 3
         ctx.beginPath(); ctx.arc(z.x, z.y, z.r + 7, 0, Math.PI * 2); ctx.stroke()
       }
+      if (z.poisonT > 0) { ctx.globalAlpha = 0.5; drawEmoji('☠️', z.x + z.r * 0.7, z.y - z.r * 0.7, 16); ctx.globalAlpha = 1 }
       drawEmoji(z.emoji, z.x, z.y, z.r * 2)
       if (z.boss) {
         const w = 80, hpr = z.hp / z.hpMax
@@ -414,7 +468,19 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       }
     }
 
-    // 玩家（狗柏扛炫砲）
+    // 環繞檳榔
+    if (player.orbit > 0) {
+      for (let i = 0; i < player.orbit; i++) {
+        const a = orbAngle + (i * Math.PI * 2) / player.orbit
+        const ox = player.x + Math.cos(a) * ORB_R, oy = player.y + Math.sin(a) * ORB_R
+        ctx.fillStyle = '#6cb83f'; ctx.strokeStyle = '#3f7a25'; ctx.lineWidth = 1.5
+        ctx.beginPath(); ctx.arc(ox, oy, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
+      }
+    }
+
+    // 玩家 + 狀態光環
+    if (player.invincT > 0) { ctx.strokeStyle = '#22d3ee'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(player.x, player.y, 30, 0, Math.PI * 2); ctx.stroke() }
+    if (player.rageT > 0) { ctx.strokeStyle = '#ff7a3b'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(player.x, player.y, 26, 0, Math.PI * 2); ctx.stroke() }
     if (dogboOk) {
       const h = 84
       const w = h * (dogbo.width / dogbo.height)
@@ -424,36 +490,12 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       ctx.drawImage(dogbo, -w * 0.5, -h * 0.5, w, h)
       ctx.restore()
     } else {
-      ctx.save(); ctx.translate(player.x, player.y); ctx.rotate(player.angle)
-      drawWeapon(); ctx.restore()
+      ctx.fillStyle = '#2563eb'; ctx.beginPath(); ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2); ctx.fill()
     }
 
-    ctx.restore() // 結束震動位移
-
-    // 手機浮動搖桿（UI 不震動）
-    if (isTouch && joy.id !== null) drawStick()
-  }
-
-  function drawWeapon() {
-    ctx.fillStyle = '#c9a468'
-    ctx.beginPath(); ctx.roundRect(-4, 3, 26, 9, 2); ctx.fill()
-    ctx.fillStyle = '#2f7ef0'
-    ctx.beginPath(); ctx.roundRect(5, 10, 7, 10, 2); ctx.fill()
-    const x0 = 12, x1 = 60, y = -11, h = 22
-    ctx.save(); ctx.beginPath(); ctx.roundRect(x0, y, x1 - x0, h, 9); ctx.clip()
-    ctx.fillStyle = '#f2f2f2'; ctx.fillRect(x0, y, x1 - x0, h)
-    const colors = ['#e23b3b', '#ef8b3b', '#f4d23b', '#49c46a', '#3aa0f7', '#8e5bf0']
-    let ci = 0
-    for (let sx = x0 - h; sx < x1 + h; sx += 8) {
-      ctx.fillStyle = colors[ci++ % colors.length]
-      ctx.beginPath(); ctx.moveTo(sx, y); ctx.lineTo(sx + 8, y); ctx.lineTo(sx + 8 - h, y + h); ctx.lineTo(sx - h, y + h); ctx.closePath(); ctx.fill()
-    }
     ctx.restore()
-    ctx.fillStyle = '#2f6fe0'
-    ctx.beginPath(); ctx.roundRect(x1 - 7, y, 7, h, 3); ctx.fill()
-    const tip = x1 + 18
-    ctx.fillStyle = '#e23b3b'
-    ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x1, y + h); ctx.lineTo(tip, 0); ctx.closePath(); ctx.fill()
+
+    if (isTouch && joy.id !== null) drawStick()
   }
 
   function drawStick() {
@@ -466,12 +508,6 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     const ky = m > 0 ? joy.oy + Math.sin(a) * r : joy.oy
     ctx.beginPath(); ctx.arc(kx, ky, 24, 0, Math.PI * 2); ctx.fill()
     ctx.globalAlpha = 1
-  }
-
-  function drawEmoji(emoji, x, y, size) {
-    ctx.font = `${size}px serif`
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText(emoji, x, y)
   }
 
   function loop(t) {
@@ -488,7 +524,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     running = false
     cancelAnimationFrame(raf)
     sound.gameOver()
-    callbacks.onGameOver?.({ score, wave, coins: Math.round(coins * (bonus.coinMul || 1)) })
+    callbacks.onGameOver?.({ score, wave, coins: Math.round(coins * (bonus.coinMul || 1)), kills: killCount, bosses: bossKills })
   }
 
   function canvasPos(e) {
@@ -501,17 +537,11 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     if (e.pointerType !== 'touch') return
     if (joy.id === null) { const p = canvasPos(e); joy.id = e.pointerId; joy.ox = p.x; joy.oy = p.y; joy.x = p.x; joy.y = p.y }
   }
-  const onPointerMove = (e) => {
-    if (e.pointerId === joy.id) { const p = canvasPos(e); joy.x = p.x; joy.y = p.y }
-  }
-  const onPointerUp = (e) => {
-    if (e.pointerId === joy.id) joy.id = null
-  }
+  const onPointerMove = (e) => { if (e.pointerId === joy.id) { const p = canvasPos(e); joy.x = p.x; joy.y = p.y } }
+  const onPointerUp = (e) => { if (e.pointerId === joy.id) joy.id = null }
 
   function start() {
-    reset()
-    running = true
-    lastTime = performance.now()
+    reset(); running = true; lastTime = performance.now()
     window.addEventListener('keydown', onKeyDown)
     window.addEventListener('keyup', onKeyUp)
     canvas.addEventListener('pointerdown', onPointerDown)

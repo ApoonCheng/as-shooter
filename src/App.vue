@@ -2,7 +2,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { createGame } from './game'
 import { supabase } from './lib/supabase'
-import { loadMeta, saveMeta, META_UPGRADES, costOf, bonuses } from './meta'
+import { loadMeta, saveMeta, META_UPGRADES, costOf, bonuses, ACHIEVEMENTS, recordGame } from './meta'
 
 const canvas = ref(null)
 const phase = ref('menu') // menu | playing | over
@@ -28,9 +28,12 @@ const finalWave = ref(0)
 // 局外養成
 const meta = ref(loadMeta())
 const coinsEarned = ref(0)
+const newAchievements = ref([])
 const upgrades = META_UPGRADES
+const achievements = ACHIEVEMENTS
 
 function openShop() { phase.value = 'shop' }
+function openAch() { phase.value = 'ach' }
 function buy(up) {
   const lvl = meta.value.lv[up.id]
   if (lvl >= up.max) return
@@ -68,13 +71,14 @@ function onWaveStart(n, isBoss) {
   bannerTimer = setTimeout(() => (banner.value = ''), 1600)
 }
 
-function onGameOver({ score: s, wave: w, coins }) {
+function onGameOver({ score: s, wave: w, coins, kills, bosses }) {
   game?.stop() // 停掉遊戲輸入監聽，避免干擾結束畫面操作
   levelChoices.value = null
   finalScore.value = s
   finalWave.value = w
   coinsEarned.value = coins || 0
   meta.value.coins += coinsEarned.value
+  newAchievements.value = recordGame(meta.value, { kills, bosses, wave: w })
   saveMeta(meta.value)
   phase.value = 'over'
   submitted.value = false
@@ -249,9 +253,26 @@ onUnmounted(() => {
         <div class="coin-bal">💰 {{ meta.coins }}</div>
         <button class="big" @click="startGame">開始遊戲</button>
         <button class="big alt" @click="openShop">🛒 強化</button>
+        <button class="big alt" @click="openAch">🏅 成就</button>
         <button v-if="hasLeaderboard" class="big alt" @click="openBoard">🏆 排行榜</button>
         <button class="mute-line" @click="toggleMute">{{ muted ? '🔇 音效關' : '🔊 音效開' }}</button>
         <p class="footer">非官方粉絲應援 · 純為好玩 ❤️</p>
+      </div>
+
+      <!-- 成就 -->
+      <div v-if="phase === 'ach'" class="overlay shop">
+        <h1>🏅 成就</h1>
+        <div class="shop-list">
+          <div v-for="a in achievements" :key="a.id" class="shop-row" :class="{ achieved: meta.done.includes(a.id) }">
+            <span class="shop-icon">{{ a.icon }}</span>
+            <div class="shop-info">
+              <div class="shop-name">{{ a.name }} <span class="shop-lv">{{ Math.min(meta.stats[a.stat], a.goal) }}/{{ a.goal }}</span></div>
+              <div class="shop-desc">{{ a.desc }} · 獎勵 💰 {{ a.reward }}</div>
+            </div>
+            <span class="maxed">{{ meta.done.includes(a.id) ? '✅' : '🔒' }}</span>
+          </div>
+        </div>
+        <button class="big" @click="phase = 'menu'">返回</button>
       </div>
 
       <!-- 強化商店 -->
@@ -299,6 +320,9 @@ onUnmounted(() => {
         <div class="final">{{ finalScore }}</div>
         <p class="sub">撐到第 {{ finalWave }} 波 · 得分 {{ finalScore }}</p>
         <p class="coins-got">💰 獲得 {{ coinsEarned }} 金幣（總計 {{ meta.coins }}）</p>
+        <div v-if="newAchievements.length" class="ach-unlock">
+          🏅 解鎖成就：{{ newAchievements.map((a) => a.name).join('、') }}
+        </div>
 
         <form v-if="hasLeaderboard && !submitted" class="submit-box" @submit.prevent="submitScore">
           <input v-model="playerName" maxlength="12" placeholder="輸入暱稱上榜" enterkeyhint="send" />

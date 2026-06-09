@@ -9,18 +9,43 @@ export const META_UPGRADES = [
   { id: 'coin', icon: '💰', name: '金幣加成', desc: '每級 +15% 金幣', max: 8, baseCost: 50 },
 ]
 
+export const ACHIEVEMENTS = [
+  { id: 'kill100', icon: '🧟', name: '除殭屍新手', desc: '累積擊殺 100 隻', stat: 'kills', goal: 100, reward: 100 },
+  { id: 'kill1000', icon: '🧟', name: '殭屍剋星', desc: '累積擊殺 1000 隻', stat: 'kills', goal: 1000, reward: 400 },
+  { id: 'kill5000', icon: '🧟', name: '清道夫', desc: '累積擊殺 5000 隻', stat: 'kills', goal: 5000, reward: 1500 },
+  { id: 'wave5', icon: '🌊', name: '初試啼聲', desc: '單局撐到第 5 波', stat: 'bestWave', goal: 5, reward: 80 },
+  { id: 'wave10', icon: '🌊', name: '身經百戰', desc: '單局撐到第 10 波', stat: 'bestWave', goal: 10, reward: 300 },
+  { id: 'wave20', icon: '🌊', name: '屹立不搖', desc: '單局撐到第 20 波', stat: 'bestWave', goal: 20, reward: 800 },
+  { id: 'boss1', icon: '👹', name: '屠王', desc: '擊殺 1 隻殭屍王', stat: 'bosses', goal: 1, reward: 150 },
+  { id: 'boss10', icon: '👹', name: '王者收割', desc: '累積擊殺 10 隻殭屍王', stat: 'bosses', goal: 10, reward: 600 },
+  { id: 'games10', icon: '🎮', name: '樂此不疲', desc: '遊玩 10 場', stat: 'games', goal: 10, reward: 200 },
+]
+
 export function loadMeta() {
-  try {
-    const m = JSON.parse(localStorage.getItem(KEY))
-    if (m && m.lv) {
-      // 補齊可能新增的欄位
-      for (const u of META_UPGRADES) if (m.lv[u.id] == null) m.lv[u.id] = 0
-      return m
+  let m
+  try { m = JSON.parse(localStorage.getItem(KEY)) } catch { /* ignore */ }
+  if (!m || !m.lv) m = { coins: 0, lv: {} }
+  for (const u of META_UPGRADES) if (m.lv[u.id] == null) m.lv[u.id] = 0
+  if (!m.stats) m.stats = { kills: 0, games: 0, bestWave: 0, bosses: 0 }
+  if (!Array.isArray(m.done)) m.done = []
+  return m
+}
+
+// 一局結束後更新累積數據，回傳這局新解鎖的成就（並發金幣獎勵）
+export function recordGame(m, run) {
+  m.stats.kills += run.kills || 0
+  m.stats.bosses += run.bosses || 0
+  m.stats.games += 1
+  if ((run.wave || 0) > m.stats.bestWave) m.stats.bestWave = run.wave || 0
+  const unlocked = []
+  for (const a of ACHIEVEMENTS) {
+    if (!m.done.includes(a.id) && m.stats[a.stat] >= a.goal) {
+      m.done.push(a.id)
+      m.coins += a.reward
+      unlocked.push(a)
     }
-  } catch { /* ignore */ }
-  const lv = {}
-  for (const u of META_UPGRADES) lv[u.id] = 0
-  return { coins: 0, lv }
+  }
+  return unlocked
 }
 
 export function saveMeta(m) {

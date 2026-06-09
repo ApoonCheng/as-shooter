@@ -51,7 +51,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       xp: 0, level: 1, xpNext: 5,
     }
     bullets = []; zombies = []; particles = []; pickups = []; ebullets = []
-    coins = 0; killCount = 0; bossKills = 0; orbAngle = 0
+    score = 0; coins = 0; killCount = 0; bossKills = 0; orbAngle = 0
     shakeAmt = 0; levelingUp = false
     wave = 0; spawnQueue = []; spawnTimer = 0; spawnInterval = 0.7
     betweenWaves = true; betweenTimer = 1.5

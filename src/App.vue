@@ -9,6 +9,9 @@ const score = ref(0)
 const wave = ref(0)
 const hp = ref(100)
 const hpMax = ref(100)
+const level = ref(1)
+const xpRatio = ref(0)
+const levelChoices = ref(null)
 const banner = ref('')
 const muted = ref(false)
 
@@ -29,6 +32,17 @@ function onStats(s) {
   wave.value = s.wave
   hp.value = s.hp
   hpMax.value = s.hpMax
+  level.value = s.level
+  xpRatio.value = s.xpRatio
+}
+
+function onLevelUp(choices) {
+  levelChoices.value = choices
+}
+
+function chooseUpgrade(c) {
+  game?.choose(c.id)
+  levelChoices.value = null
 }
 
 function onWaveStart(n, isBoss) {
@@ -39,6 +53,7 @@ function onWaveStart(n, isBoss) {
 
 function onGameOver({ score: s, wave: w }) {
   game?.stop() // 停掉遊戲輸入監聽，避免干擾結束畫面操作
+  levelChoices.value = null
   finalScore.value = s
   finalWave.value = w
   phase.value = 'over'
@@ -48,12 +63,13 @@ function onGameOver({ score: s, wave: w }) {
 
 function startGame() {
   playIntro()
+  levelChoices.value = null
   phase.value = 'playing'
   banner.value = ''
   // 等 canvas 出現再建立遊戲
   requestAnimationFrame(() => {
     game?.stop()
-    game = createGame(canvas.value, { onStats, onWaveStart, onGameOver })
+    game = createGame(canvas.value, { onStats, onWaveStart, onGameOver, onLevelUp })
     game.setMuted(muted.value)
     game.start()
   })
@@ -159,6 +175,10 @@ onUnmounted(() => {
           <div class="hp-bar"><div class="hp-fill" :style="{ width: (hp / hpMax * 100) + '%' }"></div></div>
           <span class="hud-hp">❤️ {{ hp }}</span>
         </div>
+        <div class="hud-center">
+          <span class="lvl">Lv {{ level }}</span>
+          <div class="xp-bar"><div class="xp-fill" :style="{ width: xpRatio * 100 + '%' }"></div></div>
+        </div>
         <div class="hud-right">
           <span>第 {{ wave }} 波</span>
           <span class="hud-score">{{ score }}</span>
@@ -166,6 +186,17 @@ onUnmounted(() => {
         </div>
       </div>
       <transition name="pop"><div v-if="banner" class="banner">{{ banner }}</div></transition>
+
+      <!-- 升級三選一 -->
+      <div v-if="levelChoices" class="levelup">
+        <h2>⬆️ 升級！選一個強化</h2>
+        <div class="upg-cards">
+          <button v-for="c in levelChoices" :key="c.id" class="upg" @click="chooseUpgrade(c)">
+            <span class="upg-icon">{{ c.icon }}</span>
+            <span class="upg-name">{{ c.name }}</span>
+          </button>
+        </div>
+      </div>
 
       <!-- 主選單 -->
       <div v-if="phase === 'menu'" class="overlay">
@@ -192,10 +223,9 @@ onUnmounted(() => {
         <p class="sub">用炫砲擊退湧來的殭屍，撐過一波波攻勢，每 5 波會出現殭屍王！</p>
         <div class="controls">
           <div><b>WASD / 方向鍵</b> 移動</div>
-          <div><b>滑鼠</b> 瞄準</div>
-          <div><b>按住左鍵</b> 射擊</div>
+          <div><b>自動</b> 瞄準射擊</div>
         </div>
-        <p class="sub" style="margin-top:-8px">📱 手機：左下搖桿移動，右下搖桿瞄準並自動射擊</p>
+        <p class="sub" style="margin-top:-8px">🔫 自動瞄準射擊，你只要專心移動閃殭屍！升級可三選一強化。<br />📱 手機：按住畫面拖曳即可移動</p>
         <button class="big" @click="startGame">開始遊戲</button>
         <button v-if="hasLeaderboard" class="big alt" @click="openBoard">🏆 排行榜</button>
         <button class="mute-line" @click="toggleMute">{{ muted ? '🔇 音效關' : '🔊 音效開' }}</button>

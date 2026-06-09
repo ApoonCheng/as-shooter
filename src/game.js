@@ -197,7 +197,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     else if (z.kind === 'charger') explodeAt(z.x, z.y, 96, 28, '#ff4d6d')
     else { burst(z.x, z.y, z.boss ? '#ffd23f' : '#a855f7', z.boss ? 28 : 10); sound.kill() }
     if (z.boss) shake(18)
-    if (Math.random() < (z.boss ? 1 : 0.004)) pickups.push({ x: z.x, y: z.y, r: 14 })
+    if (Math.random() < (z.boss ? 1 : 0.012)) pickups.push({ x: z.x, y: z.y, r: 14 })
   }
 
   function update(dt) {

@@ -1,6 +1,6 @@
 <script setup>
 import { ref, watch, onMounted, onUnmounted } from 'vue'
-import { createGame } from './game'
+import { createGame, CHARACTERS } from './game'
 import { supabase } from './lib/supabase'
 import { loadMeta, saveMeta, META_UPGRADES, costOf, bonuses, ACHIEVEMENTS, recordGame } from './meta'
 
@@ -16,8 +16,14 @@ const levelChoices = ref(null)
 const banner = ref('')
 const muted = ref(false)
 const combo = ref(0)
+const comboMult = ref(1)
 const dashRatio = ref(1)
 const paused = ref(false)
+
+// 角色選擇
+const characters = CHARACTERS
+const charIdx = ref(Math.min(CHARACTERS.length - 1, Number(localStorage.getItem('as-char')) || 0))
+function selectChar(i) { charIdx.value = i; localStorage.setItem('as-char', String(i)) }
 
 const hasLeaderboard = !!supabase
 const playerName = ref(localStorage.getItem('as-name') || '')
@@ -59,6 +65,7 @@ function onStats(s) {
   level.value = fin(s.level, 1)
   xpRatio.value = fin(s.xpRatio)
   combo.value = fin(s.combo)
+  comboMult.value = fin(s.comboMult, 1)
   dashRatio.value = fin(s.dashRatio, 1)
 }
 
@@ -105,7 +112,7 @@ function startGame() {
   // 等 canvas 出現再建立遊戲
   requestAnimationFrame(() => {
     game?.stop()
-    game = createGame(canvas.value, { onStats, onWaveStart, onGameOver, onLevelUp }, { bonuses: bonuses(meta.value) })
+    game = createGame(canvas.value, { onStats, onWaveStart, onGameOver, onLevelUp }, { bonuses: bonuses(meta.value), character: characters[charIdx.value].mod })
     game.setMuted(muted.value)
     game.start()
   })
@@ -261,7 +268,7 @@ onUnmounted(() => {
       </div>
 
       <!-- combo 連擊 -->
-      <transition name="pop"><div v-if="phase === 'playing' && combo >= 3" class="combo">🔥 {{ combo }} 連擊</div></transition>
+      <transition name="pop"><div v-if="phase === 'playing' && combo >= 3" class="combo">🔥 {{ combo }} 連擊 <span class="combo-mult">×{{ comboMult.toFixed(1) }}</span></div></transition>
 
       <!-- 衝刺按鈕（手機拇指可及，電腦也可按；空白鍵亦可） -->
       <button
@@ -321,6 +328,20 @@ onUnmounted(() => {
         </div>
         <p class="sub" style="margin-top:-8px">🔫 自動瞄準射擊，你只要專心拖曳閃殭屍！升級可三選一強化。<br />💻 電腦：用 WASD / 方向鍵移動</p>
         <div class="coin-bal">💰 {{ meta.coins }}</div>
+        <!-- 角色選擇 -->
+        <div class="char-pick">
+          <button
+            v-for="(c, i) in characters"
+            :key="c.id"
+            class="char-card"
+            :class="{ sel: i === charIdx }"
+            @click="selectChar(i)"
+          >
+            <span class="char-icon">{{ c.icon }}</span>
+            <span class="char-name">{{ c.name }}</span>
+          </button>
+        </div>
+        <p class="char-desc">{{ characters[charIdx].name }}：{{ characters[charIdx].desc }}</p>
         <button class="big" @click="startGame">開始遊戲</button>
         <button class="big alt" @click="openShop">🛒 強化</button>
         <button class="big alt" @click="openAch">🏅 成就</button>

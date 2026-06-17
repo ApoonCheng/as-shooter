@@ -1,0 +1,15 @@
+{
+  "name": "美秀打殭屍",
+  "short_name": "打殭屍",
+  "description": "美秀主題俯視角殭屍生存射擊遊戲",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#14101f",
+  "theme_color": "#14101f",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

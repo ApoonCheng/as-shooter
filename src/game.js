@@ -1,5 +1,12 @@
 import { Sound } from './sound'
 
+// 可選角色：每個有不同起手流派（mod 在 reset 套用於基礎數值之上）
+export const CHARACTERS = [
+  { id: 'rush', icon: '🎤', name: '主唱', desc: '高速射擊、血量略低', mod: { dmgMul: 1.15, rateMul: 0.85, hpAdd: -20 } },
+  { id: 'tank', icon: '🥁', name: '鼓手', desc: '高血量＋吸血、攻擊稍弱', mod: { hpAdd: 70, dmgMul: 0.9, speedMul: 0.94, lifesteal: 0.5 } },
+  { id: 'poison', icon: '🎸', name: '吉他手', desc: '起手帶毒彈、傷害稍低', mod: { dmgMul: 0.85, rateMul: 0.92, poison: 1 } },
+]
+
 // 美秀打殭屍 — 自動瞄準射擊 + 升級養成 + 特殊技能 + 道具掉落
 export function createGame(canvas, callbacks = {}, opts = {}) {
   const ctx = canvas.getContext('2d')
@@ -7,6 +14,10 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   const H = canvas.height
   const sound = new Sound()
   const bonus = opts.bonuses || {}
+  const char = opts.character || {}
+
+  // 手機震動回饋（不支援則略過）
+  const buzz = (ms) => { try { navigator.vibrate?.(ms) } catch { /* ignore */ } }
 
   const dogbo = new Image()
   let dogboOk = false
@@ -102,13 +113,13 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   ]
 
   function reset() {
-    const hpMax = 100 + (bonus.hpAdd || 0)
+    const hpMax = Math.max(40, 100 + (bonus.hpAdd || 0) + (char.hpAdd || 0))
     player = {
       x: W / 2, y: H * 0.64, r: 13, angle: 0, cd: 0,
-      hp: hpMax, hpMax, speed: 230 * (bonus.speedMul || 1),
-      dmg: 26 * (bonus.dmgMul || 1), fireCd: 0.18 * (bonus.rateMul || 1),
+      hp: hpMax, hpMax, speed: 230 * (bonus.speedMul || 1) * (char.speedMul || 1),
+      dmg: 26 * (bonus.dmgMul || 1) * (char.dmgMul || 1), fireCd: 0.18 * (bonus.rateMul || 1) * (char.rateMul || 1),
       bulletSpeed: 620, multishot: 1, pierce: 0,
-      explosive: 0, poison: 0, lifesteal: 0, bounce: 0, orbit: 0,
+      explosive: 0, poison: char.poison || 0, lifesteal: char.lifesteal || 0, bounce: 0, orbit: 0,
       crit: 0, knockback: 0, slow: 0,
       multiEvo: false, pierceEvo: false, explosiveEvo: false, poisonEvo: false, orbitEvo: false,
       dashCd: 0, dashT: 0, dashDx: 0, dashDy: 0,
@@ -133,6 +144,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       level: player.level, xpRatio: Math.min(1, player.xp / player.xpNext),
       invinc: player.invincT > 0, rage: player.rageT > 0,
       combo,
+      comboMult: 1 + Math.min(1.5, combo * 0.02),
       dashRatio: Math.max(0, Math.min(1, 1 - player.dashCd / DASH_CD)),
     })
   }
@@ -153,6 +165,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
         spawnQueue.push(r < 0.32 ? 'tank' : r < 0.55 ? 'fast' : 'z')
       }
       sound.bossSpawn()
+      buzz(60)
     } else {
       const n = Math.round(8 + wave * 3.5)
       const specials = SPECIAL_WAVES.filter((s) => wave >= s.min)
@@ -208,6 +221,15 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     } else {
       const zhp = Math.round(85 + wave * 22 + q * 1.4)
       zombies.push({ x, y, r: 17, speed: Math.min(220, 74 + wave * 5), hp: zhp, hpMax: zhp, dmg: 34, value: 10, xp: 1, coin: 2, kind: 'z', emoji: '🧟' })
+    }
+    // 菁英怪：隨機強化（更大、血厚、掉更多金幣）
+    if (type !== 'boss' && wave >= 4 && Math.random() < 0.08) {
+      const z = zombies[zombies.length - 1]
+      z.elite = true
+      z.hp = z.hpMax = Math.round(z.hp * 3.2)
+      z.r = Math.round(z.r * 1.4)
+      z.dmg = Math.round(z.dmg * 1.3)
+      z.value *= 3; z.xp *= 2; z.coin *= 4
     }
   }
 
@@ -322,6 +344,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     shake(5)
     burst(player.x, player.y, '#22d3ee', 12)
     sound.dash()
+    buzz(15)
   }
 
   function spitAt(z) {
@@ -404,11 +427,12 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   function onKill(z) {
     if (z.dead) return
     z.dead = true
-    score += z.value || 0
-    player.xp += z.xp || 0
-    coins += z.coin || 0
     killCount++
     combo++; comboTimer = 2
+    const mult = 1 + Math.min(1.5, combo * 0.02) // 連擊分數加成（最高 ×2.5）
+    score += Math.round((z.value || 0) * mult)
+    player.xp += z.xp || 0
+    coins += z.coin || 0
     if (z.boss) bossKills++
     if (player.lifesteal) player.hp = Math.min(player.hpMax, player.hp + player.lifesteal)
     if (z.kind === 'exploder') explodeAt(z.x, z.y, 82, 30)
@@ -425,6 +449,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       pickups.push({ x: z.x + 24, y: z.y, r: 16, type: Math.random() < 0.5 ? 'rage' : 'star', life: 10 })
       return
     }
+    if (z.elite) { pickups.push({ x: z.x, y: z.y, r: 14, type: 'coin', life: 9 }) } // 菁英必掉金幣
     const r = Math.random()
     let type = null
     if (r < 0.012) type = 'heart'
@@ -566,7 +591,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       if (!z.dead && !invulnerable() && d < player.r + z.r) {
         player.hp -= z.dmg * dt
         hurtFlash = 1
-        if (hurtSoundTimer <= 0) { sound.hurt(); hurtSoundTimer = 0.35 }
+        if (hurtSoundTimer <= 0) { sound.hurt(); buzz(25); hurtSoundTimer = 0.35 }
         if (player.hp <= 0) { player.hp = 0; return gameOver() }
       }
     }
@@ -598,7 +623,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
         if (!invulnerable()) {
           player.hp -= eb.dmg
           hurtFlash = 1
-          if (hurtSoundTimer <= 0) { sound.hurt(); hurtSoundTimer = 0.2 }
+          if (hurtSoundTimer <= 0) { sound.hurt(); buzz(25); hurtSoundTimer = 0.2 }
           if (player.hp <= 0) { player.hp = 0; return gameOver() }
         }
       }
@@ -649,6 +674,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
 
   function startLevelUp() {
     levelingUp = true
+    buzz(40)
     const avail = [
       ...UPGRADES.filter((u) => !(u.capped && u.capped(player))),
       ...EVOLUTIONS.filter((e) => e.when(player)),
@@ -774,6 +800,11 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
         }
       }
       if (z.poisonT > 0) { ctx.globalAlpha = 0.5; drawEmoji('☠️', z.x + z.r * 0.7, z.y - z.r * 0.7, 16); ctx.globalAlpha = 1 }
+      if (z.elite && !z.boss) {
+        const pulse = z.r + 5 + Math.sin(performance.now() / 180) * 3
+        ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 3; ctx.globalAlpha = 0.7
+        ctx.beginPath(); ctx.arc(z.x, z.y, pulse, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1
+      }
       if (z.boss) {
         // 專屬配色光環（脈動）
         const pulse = z.r + 8 + Math.sin(performance.now() / 200) * 4

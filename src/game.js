@@ -17,6 +17,10 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   const ENEMY_KINDS = ['z', 'fast', 'tank', 'spitter', 'exploder', 'charger', 'boss']
   const enemyImgs = {}
   for (const k of ENEMY_KINDS) { const im = new Image(); im.src = `/enemy-${k}.png`; enemyImgs[k] = im }
+  // 各魔王專屬配色圖（鍵：boss_<bossType>）
+  for (const k of ['volley', 'summon', 'ring', 'charger', 'spiral', 'blink']) {
+    const im = new Image(); im.src = `/enemy-boss-${k}.png`; enemyImgs['boss_' + k] = im
+  }
 
   // 地板平鋪材質（CC0 柏油，ambientCG）
   const floorImg = new Image()
@@ -43,12 +47,12 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   const DASH_SPEED = 900  // 衝刺速度
 
   const BOSS_TYPES = [
-    { key: 'volley', name: '彈幕王', emoji: '👹' },
-    { key: 'summon', name: '召喚王', emoji: '🧛' },
-    { key: 'ring', name: '環射王', emoji: '👻' },
-    { key: 'charger', name: '衝撞王', emoji: '🐗' },
-    { key: 'spiral', name: '螺旋王', emoji: '🌀' },
-    { key: 'blink', name: '瞬移王', emoji: '🧿' },
+    { key: 'volley', name: '彈幕王', emoji: '👹', color: '#c86eff' },
+    { key: 'summon', name: '召喚王', emoji: '🧛', color: '#eb4650' },
+    { key: 'ring', name: '環射王', emoji: '👻', color: '#96d2ff' },
+    { key: 'charger', name: '衝撞王', emoji: '🐗', color: '#eb9646' },
+    { key: 'spiral', name: '螺旋王', emoji: '🌀', color: '#50dcc8' },
+    { key: 'blink', name: '瞬移王', emoji: '🧿', color: '#ff5fc8' },
   ]
 
   // 特殊波次：某些波改成主題型生怪（min = 解鎖波數）
@@ -184,7 +188,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       const bt = BOSS_TYPES.find((b) => b.key === pendingBossType) || BOSS_TYPES[0]
       let bhp = Math.round(2900 + wave * 540 + q * 23)
       if (bt.key === 'charger') bhp = Math.round(bhp * 2) // 衝撞王血量加倍
-      zombies.push({ x, y, r: 46, speed: Math.min(135, 60 + wave * 2), hp: bhp, hpMax: bhp, dmg: 85, value: 250, xp: 8, coin: 60, boss: true, kind: 'boss', bossType: bt.key, fireT: 2, cstate: 'chase', t: 0, emoji: bt.emoji })
+      zombies.push({ x, y, r: 46, speed: Math.min(135, 60 + wave * 2), hp: bhp, hpMax: bhp, dmg: 85, value: 250, xp: 8, coin: 60, boss: true, kind: 'boss', bossType: bt.key, fireT: 2, cstate: 'chase', t: 0, emoji: bt.emoji, color: bt.color })
       shake(16)
     } else if (type === 'charger') {
       const chp = Math.round(100 + wave * 18 + q * 0.9)
@@ -234,6 +238,13 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   }
 
   function shake(m) { shakeAmt = Math.min(22, Math.max(shakeAmt, m)) }
+
+  // 就地壓縮陣列（取代每幀 filter 的重新配置，減少 GC）
+  function compact(arr, keep) {
+    let n = 0
+    for (let i = 0; i < arr.length; i++) if (keep(arr[i])) arr[n++] = arr[i]
+    arr.length = n
+  }
 
   function explodeAt(x, y, radius, dmg, color) {
     burst(x, y, color || '#ff7a3b', 30)
@@ -447,7 +458,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     hurtFlash = Math.max(0, hurtFlash - dt * 3)
     if (comboTimer > 0) { comboTimer -= dt; if (comboTimer <= 0) combo = 0 }
     for (const f of floaters) { f.y += f.vy * dt; f.vy += 80 * dt; f.life -= dt }
-    floaters = floaters.filter((f) => f.life > 0)
+    compact(floaters, (f) => f.life > 0)
 
     // 移動
     const clampX = (v) => Math.max(player.r, Math.min(W - player.r, v))
@@ -592,7 +603,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
         }
       }
     }
-    ebullets = ebullets.filter((eb) => eb.life > 0 && eb.x > -20 && eb.x < W + 20 && eb.y > -20 && eb.y < H + 20)
+    compact(ebullets, (eb) => eb.life > 0 && eb.x > -20 && eb.x < W + 20 && eb.y > -20 && eb.y < H + 20)
 
     // 子彈 vs 殭屍（爆裂、毒、穿透）
     for (const b of bullets) {
@@ -624,12 +635,12 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       pk.life -= dt
       if (Math.hypot(player.x - pk.x, player.y - pk.y) < player.r + pk.r) { applyPickup(pk); pk.dead = true }
     }
-    pickups = pickups.filter((pk) => !pk.dead && pk.life > 0)
+    compact(pickups, (pk) => !pk.dead && pk.life > 0)
 
-    bullets = bullets.filter((b) => b.life > 0 && b.x > -20 && b.x < W + 20 && b.y > -20 && b.y < H + 20)
-    zombies = zombies.filter((z) => z.hp > 0)
+    compact(bullets, (b) => b.life > 0 && b.x > -20 && b.x < W + 20 && b.y > -20 && b.y < H + 20)
+    compact(zombies, (z) => z.hp > 0)
     for (const p of particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt }
-    particles = particles.filter((p) => p.life > 0)
+    compact(particles, (p) => p.life > 0)
 
     if (shakeAmt > 0) shakeAmt = Math.max(0, shakeAmt - dt * 55)
     if (player.xp >= player.xpNext) startLevelUp()
@@ -674,7 +685,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
 
   // 畫敵人：sprite 預設朝上，旋轉成面向玩家；未載入則用 emoji 後備
   function drawEnemy(z) {
-    const img = enemyImgs[z.kind]
+    const img = (z.boss && enemyImgs['boss_' + z.bossType]) || enemyImgs[z.kind]
     if (img && img.complete && img.naturalWidth) {
       const fa = Math.atan2(player.y - z.y, player.x - z.x)
       const h = z.r * 2.6
@@ -734,18 +745,16 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     }
     ctx.globalAlpha = 1
 
-    // 敵方子彈＝紫色毒液球（帶光暈），與玩家的綠檳榔明顯區隔
+    // 敵方子彈＝紫色毒液球（外暈取代 shadowBlur，省效能）
     for (const eb of ebullets) {
-      ctx.save(); ctx.translate(eb.x, eb.y)
-      ctx.shadowColor = '#c44dff'; ctx.shadowBlur = 9
+      ctx.fillStyle = 'rgba(196,77,255,0.22)' // 外暈
+      ctx.beginPath(); ctx.arc(eb.x, eb.y, eb.r + 4, 0, Math.PI * 2); ctx.fill()
       ctx.fillStyle = '#6a1b9a' // 外圈暗紫
-      ctx.beginPath(); ctx.arc(0, 0, eb.r, 0, Math.PI * 2); ctx.fill()
-      ctx.shadowBlur = 0
+      ctx.beginPath(); ctx.arc(eb.x, eb.y, eb.r, 0, Math.PI * 2); ctx.fill()
       ctx.fillStyle = '#c44dff' // 毒液本體
-      ctx.beginPath(); ctx.arc(0, 0, eb.r * 0.72, 0, Math.PI * 2); ctx.fill()
+      ctx.beginPath(); ctx.arc(eb.x, eb.y, eb.r * 0.72, 0, Math.PI * 2); ctx.fill()
       ctx.fillStyle = '#f0c8ff' // 高光
-      ctx.beginPath(); ctx.arc(-eb.r * 0.28, -eb.r * 0.28, eb.r * 0.32, 0, Math.PI * 2); ctx.fill()
-      ctx.restore()
+      ctx.beginPath(); ctx.arc(eb.x - eb.r * 0.28, eb.y - eb.r * 0.28, eb.r * 0.32, 0, Math.PI * 2); ctx.fill()
     }
 
     // 子彈＝飛行中的檳榔，切口朝飛行方向
@@ -765,11 +774,19 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
         }
       }
       if (z.poisonT > 0) { ctx.globalAlpha = 0.5; drawEmoji('☠️', z.x + z.r * 0.7, z.y - z.r * 0.7, 16); ctx.globalAlpha = 1 }
+      if (z.boss) {
+        // 專屬配色光環（脈動）
+        const pulse = z.r + 8 + Math.sin(performance.now() / 200) * 4
+        ctx.strokeStyle = z.color || '#c86eff'; ctx.lineWidth = 3; ctx.globalAlpha = 0.6
+        ctx.beginPath(); ctx.arc(z.x, z.y, pulse, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1
+      }
       drawEnemy(z)
       if (z.boss) {
+        // 王冠標記（類型 emoji）
+        drawEmoji(z.emoji, z.x, z.y - z.r - 24, 26)
         const w = 80, hpr = z.hp / z.hpMax
         ctx.fillStyle = '#000'; ctx.fillRect(z.x - w / 2, z.y - z.r - 14, w, 7)
-        ctx.fillStyle = '#ff4d6d'; ctx.fillRect(z.x - w / 2, z.y - z.r - 14, w * hpr, 7)
+        ctx.fillStyle = z.color || '#ff4d6d'; ctx.fillRect(z.x - w / 2, z.y - z.r - 14, w * hpr, 7)
       }
     }
 
@@ -829,6 +846,25 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       g.addColorStop(1, `rgba(255,0,40,${0.5 * hurtFlash})`)
       ctx.fillStyle = g
       ctx.fillRect(0, 0, W, H)
+    }
+
+    // 場外威脅指示箭頭（魔王／衝撞王）
+    const margin = 22
+    for (const z of zombies) {
+      if (z.dead || !(z.boss || z.kind === 'charger')) continue
+      if (z.x >= margin && z.x <= W - margin && z.y >= margin && z.y <= H - margin) continue
+      const ang = Math.atan2(z.y - H / 2, z.x - W / 2)
+      const dirx = Math.cos(ang), diry = Math.sin(ang)
+      const tx = dirx !== 0 ? (W / 2 - margin) / Math.abs(dirx) : Infinity
+      const ty = diry !== 0 ? (H / 2 - margin) / Math.abs(diry) : Infinity
+      const t = Math.min(tx, ty)
+      const ax = W / 2 + dirx * t, ay = H / 2 + diry * t
+      const size = z.boss ? 16 : 10
+      ctx.save(); ctx.translate(ax, ay); ctx.rotate(ang); ctx.globalAlpha = 0.9
+      ctx.fillStyle = z.boss ? (z.color || '#ff4d6d') : '#ff5a5a'
+      ctx.beginPath(); ctx.moveTo(size, 0); ctx.lineTo(-size * 0.7, size * 0.7); ctx.lineTo(-size * 0.7, -size * 0.7); ctx.closePath(); ctx.fill()
+      ctx.restore(); ctx.globalAlpha = 1
+      if (z.boss) drawEmoji(z.emoji, ax - dirx * 22, ay - diry * 22, 20)
     }
 
     if (isTouch && joy.id !== null) drawStick()

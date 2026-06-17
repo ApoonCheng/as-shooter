@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { createGame } from './game'
 import { supabase } from './lib/supabase'
 import { loadMeta, saveMeta, META_UPGRADES, costOf, bonuses, ACHIEVEMENTS, recordGame } from './meta'
@@ -184,6 +184,28 @@ function playIntro() {
   }, 2900)
 }
 
+// 背景音樂（CC-BY CodeManu）：選單與遊戲各一軌，依狀態切換
+const BGM_VOL = 0.4
+let bgmMenu = null
+let bgmGame = null
+function ensureBgm() {
+  if (!bgmMenu) { bgmMenu = new Audio('/bgm-menu.mp3'); bgmMenu.loop = true; bgmMenu.volume = BGM_VOL }
+  if (!bgmGame) { bgmGame = new Audio('/bgm.mp3'); bgmGame.loop = true; bgmGame.volume = BGM_VOL }
+}
+function updateBgm() {
+  ensureBgm()
+  if (muted.value) { bgmMenu.pause(); bgmGame.pause(); return }
+  if (phase.value === 'playing') {
+    bgmMenu.pause()
+    if (paused.value) bgmGame.pause()
+    else bgmGame.play().catch(() => {})
+  } else {
+    bgmGame.pause()
+    bgmMenu.play().catch(() => {})
+  }
+}
+watch([phase, muted, paused], updateBgm)
+
 const blockContextMenu = (e) => e.preventDefault()
 
 // 切到背景／被訊息打斷時自動暫停
@@ -194,17 +216,23 @@ function onVisibility() {
   }
 }
 
+const kickstartBgm = () => updateBgm() // 首次互動解除瀏覽器自動播放限制
+
 onMounted(() => {
   window.addEventListener('contextmenu', blockContextMenu)
   document.addEventListener('visibilitychange', onVisibility)
+  window.addEventListener('pointerdown', kickstartBgm, { once: true })
 })
 
 onUnmounted(() => {
   game?.stop()
   clearTimeout(introTimer)
   if (introAudio) introAudio.pause()
+  bgmMenu?.pause()
+  bgmGame?.pause()
   window.removeEventListener('contextmenu', blockContextMenu)
   document.removeEventListener('visibilitychange', onVisibility)
+  window.removeEventListener('pointerdown', kickstartBgm)
 })
 </script>
 
@@ -298,7 +326,7 @@ onUnmounted(() => {
         <button class="big alt" @click="openAch">🏅 成就</button>
         <button v-if="hasLeaderboard" class="big alt" @click="openBoard">🏆 排行榜</button>
         <button class="mute-line" @click="toggleMute">{{ muted ? '🔇 音效關' : '🔊 音效開' }}</button>
-        <p class="footer">非官方粉絲應援 · 純為好玩 ❤️</p>
+        <p class="footer">非官方粉絲應援 · 純為好玩 ❤️<br />音樂：CodeManu (CC-BY 3.0)</p>
       </div>
 
       <!-- 成就 -->

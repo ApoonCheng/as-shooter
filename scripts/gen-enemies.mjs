@@ -17,6 +17,16 @@ const variants = {
   boss: { r: 200, g: 110, b: 255 },     // 紫：魔王
 }
 
+// 各魔王類型專屬配色 → public/enemy-boss-<key>.png
+const bossTints = {
+  volley: { r: 200, g: 110, b: 255 },  // 紫：彈幕王
+  summon: { r: 235, g: 70, b: 80 },    // 血紅：召喚王
+  ring: { r: 150, g: 210, b: 255 },    // 幽藍：環射王
+  charger: { r: 235, g: 150, b: 70 },  // 橘褐：衝撞王
+  spiral: { r: 80, g: 220, b: 200 },   // 青藍：螺旋王
+  blink: { r: 255, g: 95, b: 200 },    // 桃紅：瞬移王
+}
+
 const { data, info } = await sharp(SRC)
   .trim()
   .resize({ height: TARGET_H, fit: 'inside' })
@@ -28,4 +38,9 @@ for (const [name, tint] of Object.entries(variants)) {
   if (tint) img = img.tint(tint)
   await img.png().toFile(`public/enemy-${name}.png`)
   console.log(`完成：public/enemy-${name}.png  ${info.width}x${info.height}`)
+}
+
+for (const [key, tint] of Object.entries(bossTints)) {
+  await sharp(data).tint(tint).png().toFile(`public/enemy-boss-${key}.png`)
+  console.log(`完成：public/enemy-boss-${key}.png`)
 }

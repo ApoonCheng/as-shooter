@@ -13,6 +13,17 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   dogbo.onload = () => { dogboOk = true }
   dogbo.src = '/dogbo.png'
 
+  // 敵人圖（CC0 俯視殭屍 + 各類型色調變體），載入前用 emoji 後備
+  const ENEMY_KINDS = ['z', 'fast', 'tank', 'spitter', 'exploder', 'charger', 'boss']
+  const enemyImgs = {}
+  for (const k of ENEMY_KINDS) { const im = new Image(); im.src = `/enemy-${k}.png`; enemyImgs[k] = im }
+
+  // 地板平鋪材質（CC0 柏油，ambientCG）
+  const floorImg = new Image()
+  let floorPat = null
+  floorImg.onload = () => { floorPat = ctx.createPattern(floorImg, 'repeat') }
+  floorImg.src = '/floor.png'
+
   const keys = {}
   const mouse = { x: W / 2, y: H / 2 }
   const isTouch = window.matchMedia('(pointer: coarse)').matches
@@ -49,7 +60,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   function reset() {
     const hpMax = 100 + (bonus.hpAdd || 0)
     player = {
-      x: W / 2, y: H / 2, r: 13, angle: 0, cd: 0,
+      x: W / 2, y: H * 0.64, r: 13, angle: 0, cd: 0,
       hp: hpMax, hpMax, speed: 230 * (bonus.speedMul || 1),
       dmg: 26 * (bonus.dmgMul || 1), fireCd: 0.18 * (bonus.rateMul || 1),
       bulletSpeed: 620, multishot: 1, pierce: 0,
@@ -477,11 +488,46 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     ctx.fillText(emoji, x, y)
   }
 
+  // 畫敵人：sprite 預設朝上，旋轉成面向玩家；未載入則用 emoji 後備
+  function drawEnemy(z) {
+    const img = enemyImgs[z.kind]
+    if (img && img.complete && img.naturalWidth) {
+      const fa = Math.atan2(player.y - z.y, player.x - z.x)
+      const h = z.r * 2.6
+      const w = h * (img.naturalWidth / img.naturalHeight)
+      ctx.save()
+      ctx.translate(z.x, z.y)
+      ctx.rotate(fa + Math.PI / 2)
+      ctx.drawImage(img, -w / 2, -h / 2, w, h)
+      ctx.restore()
+    } else {
+      drawEmoji(z.emoji, z.x, z.y, z.r * 2)
+    }
+  }
+
+  // 荖葉包紅灰檳榔（前端 +x 為切口），子彈與環繞護體共用
+  function drawBetelNut(cx, cy, ang, R) {
+    const L = R + 4
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(ang)
+    ctx.fillStyle = '#356b1f' // 深綠葉緣
+    ctx.beginPath(); ctx.ellipse(0, 0, L, R, 0, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = '#6cb83f' // 亮綠檳榔身
+    ctx.beginPath(); ctx.ellipse(-0.4, 0, L - 1.6, R - 1.6, 0, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = 'rgba(227,236,180,0.65)' // 高光
+    ctx.beginPath(); ctx.ellipse(-L * 0.18, -R * 0.32, L * 0.42, R * 0.3, 0, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = '#f3f0d8' // 前端白色切口
+    ctx.beginPath(); ctx.ellipse(L - 2.2, 0, 2.3, R * 0.7, 0, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = '#d23b3b' // 中心紅灰
+    ctx.beginPath(); ctx.arc(L - 2.2, 0, Math.max(1, R * 0.32), 0, Math.PI * 2); ctx.fill()
+    ctx.restore()
+  }
+
   const PICK_EMOJI = { heart: '❤️', bomb: '💣', star: '⭐', rage: '⚡', coin: '💰' }
 
   function render() {
     ctx.fillStyle = '#16111f'
     ctx.fillRect(0, 0, W, H)
+    if (floorPat) { ctx.fillStyle = floorPat; ctx.fillRect(0, 0, W, H) }
     ctx.strokeStyle = 'rgba(168,85,247,0.10)'
     ctx.lineWidth = 1
     for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke() }
@@ -508,14 +554,9 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     }
     ctx.shadowBlur = 0
 
+    // 子彈＝飛行中的檳榔，切口朝飛行方向
     for (const b of bullets) {
-      const a = Math.atan2(b.vy, b.vx)
-      ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(a)
-      ctx.fillStyle = '#6cb83f'
-      ctx.beginPath(); ctx.ellipse(0, 0, b.r + 4, b.r, 0, 0, Math.PI * 2); ctx.fill()
-      ctx.fillStyle = '#e3ecb4'
-      ctx.beginPath(); ctx.ellipse(b.r + 3, 0, 2.6, 3, 0, 0, Math.PI * 2); ctx.fill()
-      ctx.restore()
+      drawBetelNut(b.x, b.y, Math.atan2(b.vy, b.vx), b.r)
     }
 
     for (const z of zombies) {
@@ -530,7 +571,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
         }
       }
       if (z.poisonT > 0) { ctx.globalAlpha = 0.5; drawEmoji('☠️', z.x + z.r * 0.7, z.y - z.r * 0.7, 16); ctx.globalAlpha = 1 }
-      drawEmoji(z.emoji, z.x, z.y, z.r * 2)
+      drawEnemy(z)
       if (z.boss) {
         const w = 80, hpr = z.hp / z.hpMax
         ctx.fillStyle = '#000'; ctx.fillRect(z.x - w / 2, z.y - z.r - 14, w, 7)
@@ -538,13 +579,12 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       }
     }
 
-    // 環繞檳榔
+    // 環繞檳榔（護體）
     if (player.orbit > 0) {
       for (let i = 0; i < player.orbit; i++) {
         const a = orbAngle + (i * Math.PI * 2) / player.orbit
         const ox = player.x + Math.cos(a) * ORB_R, oy = player.y + Math.sin(a) * ORB_R
-        ctx.fillStyle = '#6cb83f'; ctx.strokeStyle = '#3f7a25'; ctx.lineWidth = 1.5
-        ctx.beginPath(); ctx.arc(ox, oy, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
+        drawBetelNut(ox, oy, a + Math.PI / 2, 8)
       }
     }
 

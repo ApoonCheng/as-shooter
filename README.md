@@ -38,4 +38,12 @@ git push -u origin main
 
 ## 技術
 
-Vue 3 + Vite + HTML5 Canvas，音效用 WebAudio 即時合成（無音檔），排行榜用 Supabase。
+Vue 3 + Vite + HTML5 Canvas，音效用 WebAudio 即時合成（無音檔）＋ 取樣音檔，排行榜用 Supabase。直式（手機直立）版面。
+
+## 素材來源（皆 CC0 公眾領域）
+
+- 敵人圖：[Animated Top Down Zombie](https://opengameart.org/content/animated-top-down-zombie)（Riley Gombart）—— 由 `scripts/gen-enemies.mjs` 產生各類型色調變體至 `public/enemy-*.png`
+- 地板：[Asphalt026A](https://ambientcg.com)（ambientCG）→ 處理為 `public/floor.png`
+- 殭屍死亡音：[Zombies Sound Pack](https://opengameart.org/content/zombies-sound-pack) 之 `zombie-24.wav` → `public/zombie-die.wav`
+
+> 換死亡音：把音效包裡其他 `zombie-N.wav` 複製成 `public/zombie-die.wav` 即可（建議挑短促的）。

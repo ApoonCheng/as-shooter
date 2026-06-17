@@ -15,7 +15,7 @@ export class Sound {
       this.master = this.ctx.createGain()
       this.master.gain.value = 0.67 // 整體音量（比原本小 1/3）
       this.master.connect(this.ctx.destination)
-      this.loadSample('/zombie-die.mp3', (b) => { this.killBuf = b })
+      this.loadSample('/zombie-die.wav', (b) => { this.killBuf = b })
       this.loadSample('/shoot.wav', (b) => { this.shootBuf = b })
     }
     if (this.ctx.state === 'suspended') this.ctx.resume()

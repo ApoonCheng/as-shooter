@@ -163,19 +163,9 @@ function playIntro() {
   }, 2900)
 }
 
-// 手機直向 → 提示橫放（瀏覽器無法強制旋轉裝置）
-const rotateHint = ref(false)
-function checkOrient() {
-  const mobile = window.matchMedia('(pointer: coarse)').matches
-  rotateHint.value = mobile && window.innerHeight > window.innerWidth
-}
-
 const blockContextMenu = (e) => e.preventDefault()
 
 onMounted(() => {
-  checkOrient()
-  window.addEventListener('resize', checkOrient)
-  window.addEventListener('orientationchange', checkOrient)
   window.addEventListener('contextmenu', blockContextMenu)
 })
 
@@ -183,8 +173,6 @@ onUnmounted(() => {
   game?.stop()
   clearTimeout(introTimer)
   if (introAudio) introAudio.pause()
-  window.removeEventListener('resize', checkOrient)
-  window.removeEventListener('orientationchange', checkOrient)
   window.removeEventListener('contextmenu', blockContextMenu)
 })
 </script>
@@ -193,7 +181,7 @@ onUnmounted(() => {
   <div class="page">
     <div class="game-box">
       <!-- 遊戲畫布 -->
-      <canvas v-show="phase === 'playing'" ref="canvas" width="900" height="600"></canvas>
+      <canvas v-show="phase === 'playing'" ref="canvas" width="600" height="900"></canvas>
 
       <!-- 遊戲中 HUD -->
       <div v-if="phase === 'playing'" class="hud">
@@ -248,10 +236,10 @@ onUnmounted(() => {
         <h1>美秀打殭屍</h1>
         <p class="sub">用炫砲擊退湧來的殭屍，撐過一波波攻勢，每 5 波會出現殭屍王！</p>
         <div class="controls">
-          <div><b>WASD / 方向鍵</b> 移動</div>
+          <div><b>按住畫面拖曳</b> 移動</div>
           <div><b>自動</b> 瞄準射擊</div>
         </div>
-        <p class="sub" style="margin-top:-8px">🔫 自動瞄準射擊，你只要專心移動閃殭屍！升級可三選一強化。<br />📱 手機：按住畫面拖曳即可移動</p>
+        <p class="sub" style="margin-top:-8px">🔫 自動瞄準射擊，你只要專心拖曳閃殭屍！升級可三選一強化。<br />💻 電腦：用 WASD / 方向鍵移動</p>
         <div class="coin-bal">💰 {{ meta.coins }}</div>
         <button class="big" @click="startGame">開始遊戲</button>
         <button class="big alt" @click="openShop">🛒 強化</button>
@@ -349,13 +337,6 @@ onUnmounted(() => {
           <button class="big alt" @click="backToMenu">回主選單</button>
           <button class="big" @click="startGame">再玩一次</button>
         </div>
-      </div>
-    </div>
-    <!-- 手機直向提示 -->
-    <div v-if="rotateHint" class="rotate-overlay">
-      <div class="rotate-inner">
-        <div class="rotate-icon">🔄</div>
-        <p>請將手機橫放<br />以獲得最佳遊玩體驗</p>
       </div>
     </div>
   </div>

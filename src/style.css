@@ -103,6 +103,33 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; touch-act
 .hud-score { font-size: 1.15rem; color: var(--yellow); }
 .mute { pointer-events: auto; background: #fff2; border: none; border-radius: 8px; padding: 4px 8px; cursor: pointer; font-size: 1rem; }
 
+/* combo 連擊 */
+.combo {
+  position: absolute; top: 46px; left: 0; right: 0; text-align: center;
+  font-size: 1.3rem; font-weight: 900; color: #ff7a3b;
+  text-shadow: 0 2px 8px #000; pointer-events: none; z-index: 20;
+}
+
+/* 衝刺按鈕（右下，含冷卻進度環） */
+.dash-btn {
+  position: absolute; right: 14px; bottom: 16px; z-index: 30;
+  width: 64px; height: 64px; border-radius: 50%;
+  font-size: 1.8rem; color: #fff;
+  background: #1f1830cc; border: 3px solid #4a3a6a;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0.55; touch-action: none; transition: opacity 0.1s, box-shadow 0.1s;
+}
+.dash-btn.ready { opacity: 1; border-color: #22d3ee; box-shadow: 0 0 14px rgba(34, 211, 238, 0.6); }
+.dash-btn:active { transform: scale(0.92); }
+.dash-btn::before {
+  content: ''; position: absolute; inset: -3px; border-radius: 50%;
+  background: conic-gradient(#22d3ee calc(var(--p, 1) * 360deg), transparent 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
+}
+
+.pause-overlay { z-index: 50; gap: 14px; }
+
 .banner {
   position: absolute; top: 42%; left: 0; right: 0; text-align: center;
   font-size: 2rem; font-weight: 900; color: var(--yellow);

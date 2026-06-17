@@ -15,6 +15,9 @@ const xpRatio = ref(0)
 const levelChoices = ref(null)
 const banner = ref('')
 const muted = ref(false)
+const combo = ref(0)
+const dashRatio = ref(1)
+const paused = ref(false)
 
 const hasLeaderboard = !!supabase
 const playerName = ref(localStorage.getItem('as-name') || '')
@@ -55,6 +58,8 @@ function onStats(s) {
   hpMax.value = fin(s.hpMax, 100) || 100
   level.value = fin(s.level, 1)
   xpRatio.value = fin(s.xpRatio)
+  combo.value = fin(s.combo)
+  dashRatio.value = fin(s.dashRatio, 1)
 }
 
 function onLevelUp(choices) {
@@ -90,6 +95,7 @@ function onGameOver({ score: s, wave: w, coins, kills, bosses }) {
 function startGame() {
   playIntro()
   levelChoices.value = null
+  paused.value = false
   phase.value = 'playing'
   banner.value = ''
   // 等 canvas 出現再建立遊戲
@@ -103,7 +109,18 @@ function startGame() {
 
 function backToMenu() {
   game?.stop()
+  paused.value = false
   phase.value = 'menu'
+}
+
+function togglePause() {
+  if (phase.value !== 'playing') return
+  paused.value = !paused.value
+  game?.setPaused(paused.value)
+}
+
+function doDash() {
+  game?.dash()
 }
 
 function openBoard() {
@@ -165,8 +182,17 @@ function playIntro() {
 
 const blockContextMenu = (e) => e.preventDefault()
 
+// 切到背景／被訊息打斷時自動暫停
+function onVisibility() {
+  if (document.hidden && phase.value === 'playing' && !paused.value) {
+    paused.value = true
+    game?.setPaused(true)
+  }
+}
+
 onMounted(() => {
   window.addEventListener('contextmenu', blockContextMenu)
+  document.addEventListener('visibilitychange', onVisibility)
 })
 
 onUnmounted(() => {
@@ -174,6 +200,7 @@ onUnmounted(() => {
   clearTimeout(introTimer)
   if (introAudio) introAudio.pause()
   window.removeEventListener('contextmenu', blockContextMenu)
+  document.removeEventListener('visibilitychange', onVisibility)
 })
 </script>
 
@@ -197,9 +224,30 @@ onUnmounted(() => {
           <span>第 {{ wave }} 波</span>
           <span class="hud-score">{{ score }}</span>
           <button class="mute" @click="toggleMute">{{ muted ? '🔇' : '🔊' }}</button>
+          <button class="mute" @click="togglePause">⏸</button>
         </div>
       </div>
+
+      <!-- combo 連擊 -->
+      <transition name="pop"><div v-if="phase === 'playing' && combo >= 3" class="combo">🔥 {{ combo }} 連擊</div></transition>
+
+      <!-- 衝刺按鈕（手機拇指可及，電腦也可按；空白鍵亦可） -->
+      <button
+        v-if="phase === 'playing'"
+        class="dash-btn"
+        :class="{ ready: dashRatio >= 1 }"
+        :style="{ '--p': dashRatio }"
+        @pointerdown.prevent="doDash"
+      >👟</button>
+
       <transition name="pop"><div v-if="banner" class="banner">{{ banner }}</div></transition>
+
+      <!-- 暫停 -->
+      <div v-if="phase === 'playing' && paused" class="overlay pause-overlay">
+        <h1>⏸ 暫停</h1>
+        <button class="big" @click="togglePause">繼續遊戲</button>
+        <button class="big alt" @click="backToMenu">回主選單</button>
+      </div>
 
       <!-- 升級三選一 -->
       <div v-if="levelChoices" class="levelup">

@@ -36,6 +36,11 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   let betweenWaves, betweenTimer
   let score, running, raf, lastTime, hurtSoundTimer
   let levelingUp, shakeAmt, coins, killCount, bossKills, orbAngle, pendingBossType
+  let floaters, combo, comboTimer, hurtFlash, paused
+
+  const DASH_CD = 1.2     // 衝刺冷卻（秒）
+  const DASH_TIME = 0.18  // 衝刺持續（含無敵）
+  const DASH_SPEED = 900  // 衝刺速度
 
   const BOSS_TYPES = [
     { key: 'volley', name: '彈幕王', emoji: '👹' },
@@ -82,11 +87,13 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       explosive: 0, poison: 0, lifesteal: 0, bounce: 0, orbit: 0,
       crit: 0, knockback: 0, slow: 0,
       multiEvo: false, pierceEvo: false, explosiveEvo: false, poisonEvo: false, orbitEvo: false,
+      dashCd: 0, dashT: 0, dashDx: 0, dashDy: 0,
       invincT: 0, rageT: 0,
       xp: 0, level: 1, xpNext: 5,
     }
-    bullets = []; zombies = []; particles = []; pickups = []; ebullets = []
+    bullets = []; zombies = []; particles = []; pickups = []; ebullets = []; floaters = []
     score = 0; coins = 0; killCount = 0; bossKills = 0; orbAngle = 0
+    combo = 0; comboTimer = 0; hurtFlash = 0; paused = false
     shakeAmt = 0; levelingUp = false
     wave = 0; spawnQueue = []; spawnTimer = 0; spawnInterval = 0.7
     betweenWaves = true; betweenTimer = 1.5
@@ -101,6 +108,8 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       hp: Math.max(0, Math.ceil(player.hp)), hpMax: player.hpMax,
       level: player.level, xpRatio: Math.min(1, player.xp / player.xpNext),
       invinc: player.invincT > 0, rage: player.rageT > 0,
+      combo,
+      dashRatio: Math.max(0, Math.min(1, 1 - player.dashCd / DASH_CD)),
     })
   }
 
@@ -201,8 +210,9 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     burst(x, y, color || '#ff7a3b', 30)
     shake(12)
     sound.kill()
-    if (player.invincT <= 0 && Math.hypot(player.x - x, player.y - y) < radius + player.r) {
+    if (!invulnerable() && Math.hypot(player.x - x, player.y - y) < radius + player.r) {
       player.hp -= dmg
+      hurtFlash = 1
       sound.hurt()
       if (player.hp <= 0) { player.hp = 0; gameOver() }
     }
@@ -242,6 +252,36 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       if (o.dead || o === z || o.poisonT > 0) continue
       if (Math.hypot(o.x - z.x, o.y - z.y) < R + o.r) { o.poisonT = 4; o.poisonDps = dps }
     }
+  }
+
+  // 無敵判定（吃星星 or 衝刺中）
+  function invulnerable() { return player.invincT > 0 || player.dashT > 0 }
+
+  // 飄字傷害數字
+  function addFloater(x, y, amount, crit) {
+    floaters.push({ x: x + (Math.random() * 10 - 5), y, vy: -46, life: 0.7, text: Math.round(amount), crit })
+  }
+
+  // 衝刺/翻滾：往移動方向（無輸入則面向）高速位移，期間無敵
+  function dash() {
+    if (!running || levelingUp || paused) return
+    if (player.dashT > 0 || player.dashCd > 0) return
+    let dx = 0, dy = 0
+    if (joy.id !== null) { dx = joy.x - joy.ox; dy = joy.y - joy.oy }
+    else {
+      if (keys['w'] || keys['arrowup']) dy -= 1
+      if (keys['s'] || keys['arrowdown']) dy += 1
+      if (keys['a'] || keys['arrowleft']) dx -= 1
+      if (keys['d'] || keys['arrowright']) dx += 1
+    }
+    let m = Math.hypot(dx, dy)
+    if (m < 0.01) { dx = Math.cos(player.angle); dy = Math.sin(player.angle); m = 1 }
+    player.dashDx = dx / m; player.dashDy = dy / m
+    player.dashT = DASH_TIME
+    player.dashCd = DASH_CD
+    shake(5)
+    burst(player.x, player.y, '#22d3ee', 12)
+    sound.dash()
   }
 
   function spitAt(z) {
@@ -303,6 +343,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     player.xp += z.xp || 0
     coins += z.coin || 0
     killCount++
+    combo++; comboTimer = 2
     if (z.boss) bossKills++
     if (player.lifesteal) player.hp = Math.min(player.hpMax, player.hp + player.lifesteal)
     if (z.kind === 'exploder') explodeAt(z.x, z.y, 82, 30)
@@ -347,23 +388,40 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     if (player.rageT > 0) player.rageT -= dt
     orbAngle += dt * (player.orbitEvo ? 4.8 : 2.6)
 
+    // 計時器：衝刺
+    if (player.dashCd > 0) player.dashCd -= dt
+    hurtFlash = Math.max(0, hurtFlash - dt * 3)
+    if (comboTimer > 0) { comboTimer -= dt; if (comboTimer <= 0) combo = 0 }
+    for (const f of floaters) { f.y += f.vy * dt; f.vy += 80 * dt; f.life -= dt }
+    floaters = floaters.filter((f) => f.life > 0)
+
     // 移動
-    let dx = 0, dy = 0, factor = 1
-    if (joy.id !== null) {
-      dx = joy.x - joy.ox; dy = joy.y - joy.oy
-      const m = Math.hypot(dx, dy)
-      if (m < 8) { dx = dy = 0 } else { factor = Math.min(1, m / MAXR) }
+    const clampX = (v) => Math.max(player.r, Math.min(W - player.r, v))
+    const clampY = (v) => Math.max(player.r, Math.min(H - player.r, v))
+    if (player.dashT > 0) {
+      // 衝刺中：固定方向高速位移
+      player.dashT -= dt
+      player.x = clampX(player.x + player.dashDx * DASH_SPEED * dt)
+      player.y = clampY(player.y + player.dashDy * DASH_SPEED * dt)
+      if (Math.random() < 0.6) burst(player.x, player.y, '#22d3ee', 1) // 殘影
     } else {
-      if (keys['w'] || keys['arrowup']) dy -= 1
-      if (keys['s'] || keys['arrowdown']) dy += 1
-      if (keys['a'] || keys['arrowleft']) dx -= 1
-      if (keys['d'] || keys['arrowright']) dx += 1
-    }
-    const spd = player.speed * (player.rageT > 0 ? 1.4 : 1)
-    if (dx || dy) {
-      const len = Math.hypot(dx, dy)
-      player.x = Math.max(player.r, Math.min(W - player.r, player.x + (dx / len) * spd * factor * dt))
-      player.y = Math.max(player.r, Math.min(H - player.r, player.y + (dy / len) * spd * factor * dt))
+      let dx = 0, dy = 0, factor = 1
+      if (joy.id !== null) {
+        dx = joy.x - joy.ox; dy = joy.y - joy.oy
+        const m = Math.hypot(dx, dy)
+        if (m < 8) { dx = dy = 0 } else { factor = Math.min(1, m / MAXR) }
+      } else {
+        if (keys['w'] || keys['arrowup']) dy -= 1
+        if (keys['s'] || keys['arrowdown']) dy += 1
+        if (keys['a'] || keys['arrowleft']) dx -= 1
+        if (keys['d'] || keys['arrowright']) dx += 1
+      }
+      const spd = player.speed * (player.rageT > 0 ? 1.4 : 1)
+      if (dx || dy) {
+        const len = Math.hypot(dx, dy)
+        player.x = clampX(player.x + (dx / len) * spd * factor * dt)
+        player.y = clampY(player.y + (dy / len) * spd * factor * dt)
+      }
     }
 
     // 自動瞄準 + 開火
@@ -440,8 +498,9 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       // 毒傷害
       if (z.poisonT > 0) { z.poisonT -= dt; hurtZombie(z, z.poisonDps * dt) }
       // 接觸玩家
-      if (!z.dead && player.invincT <= 0 && d < player.r + z.r) {
+      if (!z.dead && !invulnerable() && d < player.r + z.r) {
         player.hp -= z.dmg * dt
+        hurtFlash = 1
         if (hurtSoundTimer <= 0) { sound.hurt(); hurtSoundTimer = 0.35 }
         if (player.hp <= 0) { player.hp = 0; return gameOver() }
       }
@@ -471,8 +530,9 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       eb.x += eb.vx * dt; eb.y += eb.vy * dt; eb.life -= dt
       if (Math.hypot(player.x - eb.x, player.y - eb.y) < player.r + eb.r) {
         eb.life = 0
-        if (player.invincT <= 0) {
+        if (!invulnerable()) {
           player.hp -= eb.dmg
+          hurtFlash = 1
           if (hurtSoundTimer <= 0) { sound.hurt(); hurtSoundTimer = 0.2 }
           if (player.hp <= 0) { player.hp = 0; return gameOver() }
         }
@@ -490,8 +550,10 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
           sound.hit()
           // 暴擊
           let dmg = b.dmg
-          if (player.crit > 0 && Math.random() < player.crit) { dmg *= 2.2; burst(b.x, b.y, '#ffd23f', 7) }
+          const isCrit = player.crit > 0 && Math.random() < player.crit
+          if (isCrit) { dmg *= 2.2; burst(b.x, b.y, '#ffd23f', 7) }
           else burst(b.x, b.y, '#ff8fcf', 4)
+          addFloater(z.x, z.y - z.r, dmg, isCrit)
           // 毒彈（毒傷隨傷害與層數提升，進化更毒）
           if (player.poison) { z.poisonT = 4; z.poisonDps = player.dmg * 0.7 * player.poison * (player.poisonEvo ? 1.8 : 1) }
           hurtZombie(z, dmg)
@@ -690,7 +752,28 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       ctx.fillStyle = '#2563eb'; ctx.beginPath(); ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2); ctx.fill()
     }
 
+    // 傷害飄字
+    for (const f of floaters) {
+      ctx.globalAlpha = Math.min(1, f.life * 2.4)
+      ctx.font = `700 ${f.crit ? 22 : 15}px "Microsoft JhengHei", sans-serif`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.55)'
+      ctx.strokeText(f.text, f.x, f.y)
+      ctx.fillStyle = f.crit ? '#ffd23f' : '#fff'
+      ctx.fillText(f.text, f.x, f.y)
+    }
+    ctx.globalAlpha = 1
+
     ctx.restore()
+
+    // 受傷紅閃（畫面邊緣暈紅）
+    if (hurtFlash > 0) {
+      const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.32, W / 2, H / 2, Math.max(W, H) * 0.62)
+      g.addColorStop(0, 'rgba(255,0,40,0)')
+      g.addColorStop(1, `rgba(255,0,40,${0.5 * hurtFlash})`)
+      ctx.fillStyle = g
+      ctx.fillRect(0, 0, W, H)
+    }
 
     if (isTouch && joy.id !== null) drawStick()
   }
@@ -711,7 +794,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     if (!running) return
     const dt = Math.min(0.05, (t - lastTime) / 1000 || 0)
     lastTime = t
-    if (!levelingUp) update(dt)
+    if (!levelingUp && !paused) update(dt)
     if (!running) return
     render()
     raf = requestAnimationFrame(loop)
@@ -728,7 +811,10 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     const r = canvas.getBoundingClientRect()
     return { x: (e.clientX - r.left) * (W / r.width), y: (e.clientY - r.top) * (H / r.height) }
   }
-  const onKeyDown = (e) => { keys[e.key.toLowerCase()] = true }
+  const onKeyDown = (e) => {
+    keys[e.key.toLowerCase()] = true
+    if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); dash() }
+  }
   const onKeyUp = (e) => { keys[e.key.toLowerCase()] = false }
   const onPointerDown = (e) => {
     if (e.pointerType !== 'touch') return
@@ -761,6 +847,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   }
 
   function setMuted(m) { sound.muted = m }
+  function setPaused(p) { paused = p; if (!p) lastTime = performance.now() }
 
-  return { start, stop, setMuted, choose }
+  return { start, stop, setMuted, choose, dash, setPaused }
 }

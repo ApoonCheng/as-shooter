@@ -85,6 +85,7 @@ export class Sound {
     else this.noise(0.14, 0.14) // 後備
   }
   hurt() { this.tone(150, 0.18, 'sawtooth', 0.16, 70) }
+  dash() { this.tone(620, 0.16, 'triangle', 0.12, 1100) }
   bossSpawn() { this.tone(90, 0.7, 'sawtooth', 0.22, 240) }
   waveStart() { this.tone(520, 0.18, 'triangle', 0.14, 800) }
   gameOver() { this.tone(440, 0.9, 'sine', 0.25, 70) }

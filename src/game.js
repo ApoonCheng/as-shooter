@@ -36,7 +36,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   let betweenWaves, betweenTimer
   let score, running, raf, lastTime, hurtSoundTimer
   let levelingUp, shakeAmt, coins, killCount, bossKills, orbAngle, pendingBossType
-  let floaters, combo, comboTimer, hurtFlash, paused, obstacles
+  let floaters, combo, comboTimer, hurtFlash, paused
 
   const DASH_CD = 1.2     // 衝刺冷卻（秒）
   const DASH_TIME = 0.18  // 衝刺持續（含無敵）
@@ -113,7 +113,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     }
     bullets = []; zombies = []; particles = []; pickups = []; ebullets = []; floaters = []
     score = 0; coins = 0; killCount = 0; bossKills = 0; orbAngle = 0
-    combo = 0; comboTimer = 0; hurtFlash = 0; paused = false; obstacles = []
+    combo = 0; comboTimer = 0; hurtFlash = 0; paused = false
     shakeAmt = 0; levelingUp = false
     wave = 0; spawnQueue = []; spawnTimer = 0; spawnInterval = 0.7
     betweenWaves = true; betweenTimer = 1.5
@@ -133,25 +133,8 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     })
   }
 
-  function genObstacles() {
-    obstacles = []
-    const stage = Math.floor((Math.max(1, wave) - 1) / 10)
-    const count = Math.min(5, 2 + stage)
-    let tries = 0
-    while (obstacles.length < count && tries < 200) {
-      tries++
-      const r = 26 + Math.random() * 22
-      const x = 70 + Math.random() * (W - 140)
-      const y = 70 + Math.random() * (H - 140)
-      if (Math.hypot(x - W / 2, y - H * 0.64) < 130) continue // 避開玩家起點通道
-      if (obstacles.some((o) => Math.hypot(o.x - x, o.y - y) < o.r + r + 30)) continue
-      obstacles.push({ x, y, r })
-    }
-  }
-
   function nextWave() {
     wave++
-    if ((wave - 1) % 10 === 0) genObstacles() // 每進新區域重新佈置障礙物
     const isBoss = wave % 5 === 0
     spawnInterval = Math.max(0.1, 0.48 - wave * 0.045)
     spawnQueue = []
@@ -494,12 +477,6 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
         player.y = clampY(player.y + (dy / len) * spd * factor * dt)
       }
     }
-    // 障礙物擋住玩家：推出
-    for (const o of obstacles) {
-      const ox = player.x - o.x, oy = player.y - o.y
-      const dist = Math.hypot(ox, oy), min = o.r + player.r
-      if (dist < min && dist > 0.01) { player.x = o.x + (ox / dist) * min; player.y = o.y + (oy / dist) * min }
-    }
 
     // 自動瞄準 + 開火
     player.cd -= dt
@@ -518,10 +495,6 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
         else if (b.x > W - b.r) { b.x = W - b.r; b.vx = -b.vx; b.bounceLeft-- }
         if (b.y < b.r) { b.y = b.r; b.vy = -b.vy; b.bounceLeft-- }
         else if (b.y > H - b.r) { b.y = H - b.r; b.vy = -b.vy; b.bounceLeft-- }
-      }
-      // 撞障礙物 → 消失
-      for (const o of obstacles) {
-        if (Math.hypot(b.x - o.x, b.y - o.y) < o.r + b.r) { b.life = 0; break }
       }
     }
 
@@ -609,9 +582,6 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     // 敵方口水彈
     for (const eb of ebullets) {
       eb.x += eb.vx * dt; eb.y += eb.vy * dt; eb.life -= dt
-      for (const o of obstacles) {
-        if (Math.hypot(eb.x - o.x, eb.y - o.y) < o.r + eb.r) { eb.life = 0; break }
-      }
       if (Math.hypot(player.x - eb.x, player.y - eb.y) < player.r + eb.r) {
         eb.life = 0
         if (!invulnerable()) {
@@ -751,14 +721,6 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
 
     ctx.save()
     if (shakeAmt > 0) ctx.translate((Math.random() * 2 - 1) * shakeAmt, (Math.random() * 2 - 1) * shakeAmt)
-
-    // 障礙物（石塊掩體）
-    for (const o of obstacles) {
-      ctx.fillStyle = '#2b2536'; ctx.strokeStyle = '#4a4358'; ctx.lineWidth = 3
-      ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
-      ctx.fillStyle = 'rgba(255,255,255,0.06)'
-      ctx.beginPath(); ctx.arc(o.x - o.r * 0.3, o.y - o.r * 0.3, o.r * 0.5, 0, Math.PI * 2); ctx.fill()
-    }
 
     for (const pk of pickups) {
       if (pk.life < 2 && Math.floor(pk.life * 6) % 2 === 0) continue // 快消失時閃爍

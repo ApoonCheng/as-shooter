@@ -36,7 +36,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   let betweenWaves, betweenTimer
   let score, running, raf, lastTime, hurtSoundTimer
   let levelingUp, shakeAmt, coins, killCount, bossKills, orbAngle, pendingBossType
-  let floaters, combo, comboTimer, hurtFlash, paused
+  let floaters, combo, comboTimer, hurtFlash, paused, obstacles
 
   const DASH_CD = 1.2     // 衝刺冷卻（秒）
   const DASH_TIME = 0.18  // 衝刺持續（含無敵）
@@ -47,7 +47,27 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     { key: 'summon', name: '召喚王', emoji: '🧛' },
     { key: 'ring', name: '環射王', emoji: '👻' },
     { key: 'charger', name: '衝撞王', emoji: '🐗' },
+    { key: 'spiral', name: '螺旋王', emoji: '🌀' },
+    { key: 'blink', name: '瞬移王', emoji: '🧿' },
   ]
+
+  // 特殊波次：某些波改成主題型生怪（min = 解鎖波數）
+  const SPECIAL_WAVES = [
+    { key: 'swarm', name: '⚡ 快速狂潮', min: 3, build: (n) => Array(Math.round(n * 1.5)).fill('fast') },
+    { key: 'tankwall', name: '🛡️ 坦克陣', min: 5, build: (n) => { const a = []; const t = Math.round(n * 0.45); for (let i = 0; i < t; i++) a.push('tank'); for (let i = 0; i < n - t; i++) a.push('z'); return a } },
+    { key: 'boom', name: '💥 爆破危機', min: 4, build: (n) => Array.from({ length: n }, () => (Math.random() < 0.6 ? 'exploder' : 'fast')) },
+    { key: 'toxic', name: '🤮 毒氣瀰漫', min: 4, build: (n) => Array.from({ length: n }, () => (Math.random() < 0.55 ? 'spitter' : 'z')) },
+    { key: 'rush', name: '🐗 衝撞狂潮', min: 6, build: (n) => Array.from({ length: n }, () => (Math.random() < 0.5 ? 'charger' : 'fast')) },
+  ]
+
+  // 場景主題：每 10 波換一個區域氛圍
+  const STAGE_THEMES = [
+    { name: '紫夜街區', base: '#16111f', grid: 'rgba(168,85,247,0.10)', tint: null },
+    { name: '黃昏廢墟', base: '#1c1410', grid: 'rgba(255,170,80,0.10)', tint: 'rgba(255,140,40,0.10)' },
+    { name: '血月墓園', base: '#1a0e10', grid: 'rgba(255,70,90,0.12)', tint: 'rgba(200,30,50,0.13)' },
+    { name: '極夜冰原', base: '#0e1320', grid: 'rgba(90,150,255,0.12)', tint: 'rgba(60,110,220,0.12)' },
+  ]
+  const currentTheme = () => STAGE_THEMES[Math.floor((Math.max(1, wave) - 1) / 10) % STAGE_THEMES.length]
 
   const UPGRADES = [
     // —— 輸出 ——
@@ -93,7 +113,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     }
     bullets = []; zombies = []; particles = []; pickups = []; ebullets = []; floaters = []
     score = 0; coins = 0; killCount = 0; bossKills = 0; orbAngle = 0
-    combo = 0; comboTimer = 0; hurtFlash = 0; paused = false
+    combo = 0; comboTimer = 0; hurtFlash = 0; paused = false; obstacles = []
     shakeAmt = 0; levelingUp = false
     wave = 0; spawnQueue = []; spawnTimer = 0; spawnInterval = 0.7
     betweenWaves = true; betweenTimer = 1.5
@@ -113,12 +133,29 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     })
   }
 
+  function genObstacles() {
+    obstacles = []
+    const stage = Math.floor((Math.max(1, wave) - 1) / 10)
+    const count = Math.min(5, 2 + stage)
+    let tries = 0
+    while (obstacles.length < count && tries < 200) {
+      tries++
+      const r = 26 + Math.random() * 22
+      const x = 70 + Math.random() * (W - 140)
+      const y = 70 + Math.random() * (H - 140)
+      if (Math.hypot(x - W / 2, y - H * 0.64) < 130) continue // 避開玩家起點通道
+      if (obstacles.some((o) => Math.hypot(o.x - x, o.y - y) < o.r + r + 30)) continue
+      obstacles.push({ x, y, r })
+    }
+  }
+
   function nextWave() {
     wave++
+    if ((wave - 1) % 10 === 0) genObstacles() // 每進新區域重新佈置障礙物
     const isBoss = wave % 5 === 0
     spawnInterval = Math.max(0.1, 0.48 - wave * 0.045)
     spawnQueue = []
-    let bossName = ''
+    let bossName = '', waveLabel = ''
     if (isBoss) {
       const bt = BOSS_TYPES[(wave / 5 - 1) % BOSS_TYPES.length]
       pendingBossType = bt.key
@@ -130,16 +167,25 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       }
       sound.bossSpawn()
     } else {
-      const n = 8 + wave * 3.5
-      const pool = ['z', 'z', 'fast']
-      if (wave >= 3) pool.push('tank', 'fast')
-      if (wave >= 4) pool.push('spitter', 'exploder')
-      if (wave >= 6) pool.push('charger', 'tank')
-      for (let i = 0; i < n; i++) spawnQueue.push(pool[Math.floor(Math.random() * pool.length)])
+      const n = Math.round(8 + wave * 3.5)
+      const specials = SPECIAL_WAVES.filter((s) => wave >= s.min)
+      if (specials.length && wave >= 3 && Math.random() < 0.45) {
+        const sp = specials[Math.floor(Math.random() * specials.length)]
+        spawnQueue = sp.build(n)
+        waveLabel = sp.name
+      } else {
+        const pool = ['z', 'z', 'fast']
+        if (wave >= 3) pool.push('tank', 'fast')
+        if (wave >= 4) pool.push('spitter', 'exploder')
+        if (wave >= 6) pool.push('charger', 'tank')
+        for (let i = 0; i < n; i++) spawnQueue.push(pool[Math.floor(Math.random() * pool.length)])
+      }
     }
+    // 進入新區域 → 蓋過標籤，提示區域名
+    if (wave > 1 && (wave - 1) % 10 === 0) waveLabel = `🌍 ${currentTheme().name}`
     spawnTimer = 0
     sound.waveStart()
-    callbacks.onWaveStart?.(wave, isBoss, bossName)
+    callbacks.onWaveStart?.(wave, isBoss, bossName, waveLabel)
     pushStats()
   }
 
@@ -317,10 +363,35 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     shake(8)
   }
 
+  function bossSpiral(z) {
+    z.ringPhase = (z.ringPhase || 0) + 0.5 // 連續旋轉 → 螺旋彈道
+    const arms = 3, sp = 235
+    for (let k = 0; k < arms; k++) {
+      const a = z.ringPhase + (k / arms) * Math.PI * 2
+      ebullets.push({ x: z.x, y: z.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 9, dmg: 18, life: 4 })
+    }
+  }
+
+  function bossBlink(z) {
+    // 瞬移到玩家附近 + 全方位爆射
+    const ang = Math.random() * Math.PI * 2, dist = 150 + Math.random() * 120
+    z.x = Math.max(60, Math.min(W - 60, player.x + Math.cos(ang) * dist))
+    z.y = Math.max(60, Math.min(H - 60, player.y + Math.sin(ang) * dist))
+    burst(z.x, z.y, '#b061ff', 20); shake(8)
+    const n = 14, sp = 230
+    for (let i = 0; i < n; i++) { const aa = (i / n) * Math.PI * 2; ebullets.push({ x: z.x, y: z.y, vx: Math.cos(aa) * sp, vy: Math.sin(aa) * sp, r: 10, dmg: 20, life: 4 }) }
+  }
+
   function bossAI(z, dt, a, d) {
     const cos = Math.cos(a), sin = Math.sin(a)
     z.fireT -= dt
-    if (z.bossType === 'summon') {
+    if (z.bossType === 'spiral') {
+      z.x += cos * z.speed * 0.55 * dt; z.y += sin * z.speed * 0.55 * dt
+      if (z.fireT <= 0) { z.fireT = 0.16; bossSpiral(z) }
+    } else if (z.bossType === 'blink') {
+      z.x += cos * z.speed * 0.8 * dt; z.y += sin * z.speed * 0.8 * dt
+      if (z.fireT <= 0) { z.fireT = 1.8; bossBlink(z) }
+    } else if (z.bossType === 'summon') {
       z.x += cos * z.speed * 0.7 * dt; z.y += sin * z.speed * 0.7 * dt
       if (z.fireT <= 0) { z.fireT = 2.2; bossSummon(z) }
     } else if (z.bossType === 'ring') {
@@ -423,6 +494,12 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
         player.y = clampY(player.y + (dy / len) * spd * factor * dt)
       }
     }
+    // 障礙物擋住玩家：推出
+    for (const o of obstacles) {
+      const ox = player.x - o.x, oy = player.y - o.y
+      const dist = Math.hypot(ox, oy), min = o.r + player.r
+      if (dist < min && dist > 0.01) { player.x = o.x + (ox / dist) * min; player.y = o.y + (oy / dist) * min }
+    }
 
     // 自動瞄準 + 開火
     player.cd -= dt
@@ -441,6 +518,10 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
         else if (b.x > W - b.r) { b.x = W - b.r; b.vx = -b.vx; b.bounceLeft-- }
         if (b.y < b.r) { b.y = b.r; b.vy = -b.vy; b.bounceLeft-- }
         else if (b.y > H - b.r) { b.y = H - b.r; b.vy = -b.vy; b.bounceLeft-- }
+      }
+      // 撞障礙物 → 消失
+      for (const o of obstacles) {
+        if (Math.hypot(b.x - o.x, b.y - o.y) < o.r + b.r) { b.life = 0; break }
       }
     }
 
@@ -528,6 +609,9 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     // 敵方口水彈
     for (const eb of ebullets) {
       eb.x += eb.vx * dt; eb.y += eb.vy * dt; eb.life -= dt
+      for (const o of obstacles) {
+        if (Math.hypot(eb.x - o.x, eb.y - o.y) < o.r + eb.r) { eb.life = 0; break }
+      }
       if (Math.hypot(player.x - eb.x, player.y - eb.y) < player.r + eb.r) {
         eb.life = 0
         if (!invulnerable()) {
@@ -655,16 +739,26 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   const PICK_EMOJI = { heart: '❤️', bomb: '💣', star: '⭐', rage: '⚡', coin: '💰' }
 
   function render() {
-    ctx.fillStyle = '#16111f'
+    const th = currentTheme()
+    ctx.fillStyle = th.base
     ctx.fillRect(0, 0, W, H)
     if (floorPat) { ctx.fillStyle = floorPat; ctx.fillRect(0, 0, W, H) }
-    ctx.strokeStyle = 'rgba(168,85,247,0.10)'
+    if (th.tint) { ctx.fillStyle = th.tint; ctx.fillRect(0, 0, W, H) }
+    ctx.strokeStyle = th.grid
     ctx.lineWidth = 1
     for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke() }
     for (let y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke() }
 
     ctx.save()
     if (shakeAmt > 0) ctx.translate((Math.random() * 2 - 1) * shakeAmt, (Math.random() * 2 - 1) * shakeAmt)
+
+    // 障礙物（石塊掩體）
+    for (const o of obstacles) {
+      ctx.fillStyle = '#2b2536'; ctx.strokeStyle = '#4a4358'; ctx.lineWidth = 3
+      ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
+      ctx.fillStyle = 'rgba(255,255,255,0.06)'
+      ctx.beginPath(); ctx.arc(o.x - o.r * 0.3, o.y - o.r * 0.3, o.r * 0.5, 0, Math.PI * 2); ctx.fill()
+    }
 
     for (const pk of pickups) {
       if (pk.life < 2 && Math.floor(pk.life * 6) % 2 === 0) continue // 快消失時閃爍

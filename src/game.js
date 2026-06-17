@@ -45,16 +45,31 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   ]
 
   const UPGRADES = [
+    // —— 輸出 ——
     { id: 'dmg', icon: '💥', name: '傷害 +9', apply: (p) => { p.dmg += 9 } },
-    { id: 'rate', icon: '⚡', name: '攻速 +10%', apply: (p) => { p.fireCd = Math.max(0.09, p.fireCd * 0.9) } },
-    { id: 'multi', icon: '🔱', name: '多重彈 +1', apply: (p) => { p.multishot += 1 }, capped: (p) => p.multishot >= 4 },
-    { id: 'pierce', icon: '➡️', name: '穿透 +1', apply: (p) => { p.pierce += 1 }, capped: (p) => p.pierce >= 3 },
-    { id: 'hp', icon: '❤️', name: '最大血量 +30（補30血）', apply: (p) => { p.hpMax += 30; p.hp = Math.min(p.hpMax, p.hp + 30) } },
+    { id: 'rate', icon: '⚡', name: '攻速 +10%', apply: (p) => { p.fireCd = Math.max(0.07, p.fireCd * 0.9) } },
+    { id: 'multi', icon: '🔱', name: '多重彈 +1', apply: (p) => { p.multishot += 1 }, capped: (p) => p.multishot >= 5 },
+    { id: 'pierce', icon: '➡️', name: '穿透 +1', apply: (p) => { p.pierce += 1 }, capped: (p) => p.pierce >= 4 },
+    { id: 'crit', icon: '🎯', name: '暴擊 +12%（2.2倍傷害）', apply: (p) => { p.crit += 0.12 }, capped: (p) => p.crit >= 0.6 - 1e-6 },
+    // —— 特殊彈 ——
     { id: 'explosive', icon: '🧨', name: '爆裂彈（命中爆炸）', apply: (p) => { p.explosive += 1 }, capped: (p) => p.explosive >= 3 },
-    { id: 'poison', icon: '☠️', name: '毒彈（強力持續傷害）', apply: (p) => { p.poison += 1 }, capped: (p) => p.poison >= 3, weight: 1.5 },
-    { id: 'lifesteal', icon: '🩸', name: '吸血 +0.4（擊殺回血）', apply: (p) => { p.lifesteal += 0.4 }, capped: (p) => p.lifesteal >= 2 },
+    { id: 'poison', icon: '☠️', name: '毒彈（毒死會擴散感染）', apply: (p) => { p.poison += 1 }, capped: (p) => p.poison >= 4, weight: 1.3 },
     { id: 'bounce', icon: '🪃', name: '彈跳 +1（撞牆反彈）', apply: (p) => { p.bounce += 1 }, capped: (p) => p.bounce >= 3 },
-    { id: 'orbit', icon: '🛡️', name: '環繞檳榔 +1（高傷護體）', apply: (p) => { p.orbit += 1 }, capped: (p) => p.orbit >= 4, weight: 1.5 },
+    // —— 防禦／控場 ——
+    { id: 'hp', icon: '❤️', name: '最大血量 +30（補30血）', apply: (p) => { p.hpMax += 30; p.hp = Math.min(p.hpMax, p.hp + 30) } },
+    { id: 'lifesteal', icon: '🩸', name: '吸血 +0.5（擊殺回血）', apply: (p) => { p.lifesteal += 0.5 }, capped: (p) => p.lifesteal >= 2.5 - 1e-6 },
+    { id: 'orbit', icon: '🛡️', name: '環繞檳榔 +1（旋轉護體＋擊退）', apply: (p) => { p.orbit += 1 }, capped: (p) => p.orbit >= 5, weight: 1.3 },
+    { id: 'knockback', icon: '👊', name: '擊退 +1（子彈推開殭屍）', apply: (p) => { p.knockback += 1 }, capped: (p) => p.knockback >= 3 },
+    { id: 'slow', icon: '🕸️', name: '緩速光環（拖慢周圍殭屍）', apply: (p) => { p.slow += 1 }, capped: (p) => p.slow >= 3, weight: 1.2 },
+  ]
+
+  // 滿級進化：某升級點滿後出現，選了就質變（每種一次、權重高更易出現）
+  const EVOLUTIONS = [
+    { id: 'evo_multi', icon: '🌟', name: '✨爆音波·全方位環射', weight: 3, when: (p) => p.multishot >= 5 && !p.multiEvo, apply: (p) => { p.multiEvo = true } },
+    { id: 'evo_pierce', icon: '🌟', name: '✨貫穿之雷·無限穿透', weight: 3, when: (p) => p.pierce >= 4 && !p.pierceEvo, apply: (p) => { p.pierceEvo = true } },
+    { id: 'evo_explosive', icon: '🌟', name: '✨核爆彈·大範圍爆炸', weight: 3, when: (p) => p.explosive >= 3 && !p.explosiveEvo, apply: (p) => { p.explosiveEvo = true } },
+    { id: 'evo_poison', icon: '🌟', name: '✨劇毒瘟疫·毒霧蔓延', weight: 3, when: (p) => p.poison >= 4 && !p.poisonEvo, apply: (p) => { p.poisonEvo = true } },
+    { id: 'evo_orbit', icon: '🌟', name: '✨檳榔風暴·高速大護體', weight: 3, when: (p) => p.orbit >= 5 && !p.orbitEvo, apply: (p) => { p.orbitEvo = true } },
   ]
 
   function reset() {
@@ -65,6 +80,8 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       dmg: 26 * (bonus.dmgMul || 1), fireCd: 0.18 * (bonus.rateMul || 1),
       bulletSpeed: 620, multishot: 1, pierce: 0,
       explosive: 0, poison: 0, lifesteal: 0, bounce: 0, orbit: 0,
+      crit: 0, knockback: 0, slow: 0,
+      multiEvo: false, pierceEvo: false, explosiveEvo: false, poisonEvo: false, orbitEvo: false,
       invincT: 0, rageT: 0,
       xp: 0, level: 1, xpNext: 5,
     }
@@ -155,11 +172,12 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   function fire() {
     if (player.cd > 0) return
     player.cd = player.fireCd * (player.rageT > 0 ? 0.5 : 1)
-    const n = player.multishot
-    const spread = 0.14
-    const base = player.angle - (spread * (n - 1)) / 2
+    const evo = player.multiEvo
+    const n = evo ? player.multishot + 5 : player.multishot // 進化：全方位環射
+    const step = evo ? (Math.PI * 2) / n : 0.14
+    const base = evo ? player.angle : player.angle - (0.14 * (n - 1)) / 2
     for (let i = 0; i < n; i++) {
-      const a = base + spread * i
+      const a = base + step * i
       bullets.push({
         x: player.x + Math.cos(a) * player.r, y: player.y + Math.sin(a) * player.r,
         vx: Math.cos(a) * player.bulletSpeed, vy: Math.sin(a) * player.bulletSpeed,
@@ -202,6 +220,28 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     if (z.dead) return
     z.hp -= dmg
     if (z.hp <= 0) onKill(z)
+  }
+
+  // 擊退：給殭屍一個離開來源方向的速度（會在 AI 迴圈逐漸衰減）；王／坦克較重
+  function applyKnock(z, ang, force) {
+    if (z.dead) return
+    if (z.boss) force *= 0.12
+    else if (z.kind === 'tank') force *= 0.45
+    z.kx = (z.kx || 0) + Math.cos(ang) * force
+    z.ky = (z.ky || 0) + Math.sin(ang) * force
+    const m = Math.hypot(z.kx, z.ky), cap = 520
+    if (m > cap) { z.kx = (z.kx / m) * cap; z.ky = (z.ky / m) * cap }
+  }
+
+  // 毒擴散：毒死的殭屍會把毒感染給周圍（進化後範圍更大、毒更強）
+  function spreadPoison(z) {
+    const R = player.poisonEvo ? 95 : 60
+    burst(z.x, z.y, '#7CFC00', player.poisonEvo ? 16 : 9)
+    const dps = player.dmg * 0.7 * player.poison * (player.poisonEvo ? 1.8 : 1)
+    for (const o of zombies) {
+      if (o.dead || o === z || o.poisonT > 0) continue
+      if (Math.hypot(o.x - z.x, o.y - z.y) < R + o.r) { o.poisonT = 4; o.poisonDps = dps }
+    }
   }
 
   function spitAt(z) {
@@ -269,6 +309,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     else if (z.kind === 'charger') explodeAt(z.x, z.y, 96, 28, '#ff4d6d')
     else { burst(z.x, z.y, z.boss ? '#ffd23f' : '#a855f7', z.boss ? 28 : 10); sound.kill() }
     if (z.boss) shake(18)
+    if (player.poison && z.poisonT > 0) spreadPoison(z)
     rollDrop(z)
   }
 
@@ -304,7 +345,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     // 計時器
     if (player.invincT > 0) player.invincT -= dt
     if (player.rageT > 0) player.rageT -= dt
-    orbAngle += dt * 2.6
+    orbAngle += dt * (player.orbitEvo ? 4.8 : 2.6)
 
     // 移動
     let dx = 0, dy = 0, factor = 1
@@ -364,6 +405,9 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       if (z.dead) continue
       const a = Math.atan2(player.y - z.y, player.x - z.x)
       const d = Math.hypot(player.x - z.x, player.y - z.y)
+      // 緩速光環：靠近玩家的殭屍變慢（暫時縮放速度，本幀結束還原）
+      const realSpeed = z.speed
+      if (player.slow > 0 && d < 120 + player.slow * 30) z.speed *= 1 - Math.min(0.62, 0.18 * player.slow)
       if (z.kind === 'spitter') {
         if (d > 290) { z.x += Math.cos(a) * z.speed * dt; z.y += Math.sin(a) * z.speed * dt }
         else if (d < 230) { z.x -= Math.cos(a) * z.speed * dt; z.y -= Math.sin(a) * z.speed * dt }
@@ -385,6 +429,14 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       } else {
         z.x += Math.cos(a) * z.speed * dt; z.y += Math.sin(a) * z.speed * dt
       }
+      z.speed = realSpeed
+      // 擊退位移（逐漸衰減）
+      if (z.kx || z.ky) {
+        z.x += z.kx * dt; z.y += z.ky * dt
+        const k = Math.max(0, 1 - dt * 6)
+        z.kx *= k; z.ky *= k
+        if (Math.abs(z.kx) < 3 && Math.abs(z.ky) < 3) { z.kx = 0; z.ky = 0 }
+      }
       // 毒傷害
       if (z.poisonT > 0) { z.poisonT -= dt; hurtZombie(z, z.poisonDps * dt) }
       // 接觸玩家
@@ -395,14 +447,21 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       }
     }
 
-    // 環繞檳榔傷害
+    // 環繞檳榔傷害（貼身防禦：大判定、高傷、命中擊退；進化更猛）
     if (player.orbit > 0) {
+      const orbR = ORB_R + (player.orbitEvo ? 26 : 0)
+      const hitR = player.orbitEvo ? 30 : 22
+      const dps = player.dmg * (player.orbitEvo ? 6 : 4.2)
+      const push = player.orbitEvo ? 240 : 150
       for (let i = 0; i < player.orbit; i++) {
         const a = orbAngle + (i * Math.PI * 2) / player.orbit
-        const ox = player.x + Math.cos(a) * ORB_R, oy = player.y + Math.sin(a) * ORB_R
+        const ox = player.x + Math.cos(a) * orbR, oy = player.y + Math.sin(a) * orbR
         for (const z of zombies) {
           if (z.dead) continue
-          if (Math.hypot(z.x - ox, z.y - oy) < 16 + z.r) hurtZombie(z, player.dmg * 2.8 * dt)
+          if (Math.hypot(z.x - ox, z.y - oy) < hitR + z.r) {
+            hurtZombie(z, dps * dt)
+            applyKnock(z, Math.atan2(z.y - player.y, z.x - player.x), push)
+          }
         }
       }
     }
@@ -428,11 +487,17 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
         if (z.dead || b.hit.has(z)) continue
         if (Math.hypot(b.x - z.x, b.y - z.y) < b.r + z.r) {
           b.hit.add(z)
-          burst(b.x, b.y, '#ff8fcf', 4)
           sound.hit()
-          if (player.poison) { z.poisonT = 3; z.poisonDps = player.dmg * 0.55 * player.poison }
-          hurtZombie(z, b.dmg)
-          if (player.explosive) enemyExplode(b.x, b.y, 34 + player.explosive * 14, b.dmg * 0.5)
+          // 暴擊
+          let dmg = b.dmg
+          if (player.crit > 0 && Math.random() < player.crit) { dmg *= 2.2; burst(b.x, b.y, '#ffd23f', 7) }
+          else burst(b.x, b.y, '#ff8fcf', 4)
+          // 毒彈（毒傷隨傷害與層數提升，進化更毒）
+          if (player.poison) { z.poisonT = 4; z.poisonDps = player.dmg * 0.7 * player.poison * (player.poisonEvo ? 1.8 : 1) }
+          hurtZombie(z, dmg)
+          if (player.explosive) enemyExplode(b.x, b.y, (34 + player.explosive * 14) * (player.explosiveEvo ? 1.9 : 1), b.dmg * (player.explosiveEvo ? 0.9 : 0.5))
+          if (player.knockback) applyKnock(z, Math.atan2(b.vy, b.vx), 80 * player.knockback)
+          if (player.pierceEvo) continue // 進化：無限穿透，子彈不因命中而消失
           if (b.pierceLeft <= 0) { b.life = 0; break } else b.pierceLeft--
         }
       }
@@ -457,7 +522,10 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
 
   function startLevelUp() {
     levelingUp = true
-    const avail = UPGRADES.filter((u) => !(u.capped && u.capped(player)))
+    const avail = [
+      ...UPGRADES.filter((u) => !(u.capped && u.capped(player))),
+      ...EVOLUTIONS.filter((e) => e.when(player)),
+    ]
     const choices = []
     while (choices.length < 3 && avail.length) {
       let total = 0
@@ -472,7 +540,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   }
 
   function choose(id) {
-    const up = UPGRADES.find((u) => u.id === id)
+    const up = UPGRADES.find((u) => u.id === id) || EVOLUTIONS.find((e) => e.id === id)
     if (up) up.apply(player)
     player.xp -= player.xpNext
     player.level++
@@ -587,12 +655,23 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       }
     }
 
+    // 緩速光環
+    if (player.slow > 0) {
+      const sr = 120 + player.slow * 30
+      ctx.fillStyle = 'rgba(120,180,255,0.06)'
+      ctx.beginPath(); ctx.arc(player.x, player.y, sr, 0, Math.PI * 2); ctx.fill()
+      ctx.strokeStyle = 'rgba(140,190,255,0.28)'; ctx.lineWidth = 2; ctx.setLineDash([6, 8])
+      ctx.beginPath(); ctx.arc(player.x, player.y, sr, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([])
+    }
+
     // 環繞檳榔（護體）
     if (player.orbit > 0) {
+      const orbR = ORB_R + (player.orbitEvo ? 26 : 0)
+      const nutR = player.orbitEvo ? 11 : 8
       for (let i = 0; i < player.orbit; i++) {
         const a = orbAngle + (i * Math.PI * 2) / player.orbit
-        const ox = player.x + Math.cos(a) * ORB_R, oy = player.y + Math.sin(a) * ORB_R
-        drawBetelNut(ox, oy, a + Math.PI / 2, 8)
+        const ox = player.x + Math.cos(a) * orbR, oy = player.y + Math.sin(a) * orbR
+        drawBetelNut(ox, oy, a + Math.PI / 2, nutR)
       }
     }
 

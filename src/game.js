@@ -548,11 +548,19 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     }
     ctx.globalAlpha = 1
 
+    // 敵方子彈＝紫色毒液球（帶光暈），與玩家的綠檳榔明顯區隔
     for (const eb of ebullets) {
-      ctx.fillStyle = '#8ed13b'; ctx.shadowColor = '#3f7a25'; ctx.shadowBlur = 6
-      ctx.beginPath(); ctx.arc(eb.x, eb.y, eb.r, 0, Math.PI * 2); ctx.fill()
+      ctx.save(); ctx.translate(eb.x, eb.y)
+      ctx.shadowColor = '#c44dff'; ctx.shadowBlur = 9
+      ctx.fillStyle = '#6a1b9a' // 外圈暗紫
+      ctx.beginPath(); ctx.arc(0, 0, eb.r, 0, Math.PI * 2); ctx.fill()
+      ctx.shadowBlur = 0
+      ctx.fillStyle = '#c44dff' // 毒液本體
+      ctx.beginPath(); ctx.arc(0, 0, eb.r * 0.72, 0, Math.PI * 2); ctx.fill()
+      ctx.fillStyle = '#f0c8ff' // 高光
+      ctx.beginPath(); ctx.arc(-eb.r * 0.28, -eb.r * 0.28, eb.r * 0.32, 0, Math.PI * 2); ctx.fill()
+      ctx.restore()
     }
-    ctx.shadowBlur = 0
 
     // 子彈＝飛行中的檳榔，切口朝飛行方向
     for (const b of bullets) {

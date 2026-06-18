@@ -56,6 +56,8 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   const DASH_CD = 1.2     // 衝刺冷卻（秒）
   const DASH_TIME = 0.18  // 衝刺持續（含無敵）
   const DASH_SPEED = 900  // 衝刺速度
+  const HEAL_CAP = 12     // 吸血回血預算上限（爆發）
+  const HEAL_REGEN = 10   // 回血預算每秒回復 → 等於每秒最多回 ~10 HP
 
   const BOSS_TYPES = [
     { key: 'volley', name: '彈幕王', emoji: '👹', color: '#c86eff' },
@@ -123,6 +125,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       crit: 0, knockback: 0, slow: 0,
       multiEvo: false, pierceEvo: false, explosiveEvo: false, poisonEvo: false, orbitEvo: false,
       dashCd: 0, dashT: 0, dashDx: 0, dashDy: 0,
+      healBudget: HEAL_CAP,
       invincT: 0, rageT: 0,
       xp: 0, level: 1, xpNext: 5,
     }
@@ -178,6 +181,8 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
         if (wave >= 3) pool.push('tank', 'fast')
         if (wave >= 4) pool.push('spitter', 'exploder')
         if (wave >= 6) pool.push('charger', 'tank')
+        if (wave >= 8) pool.push('spitter', 'spitter') // 後期遠程壓力：逼玩家移動閃彈
+        if (wave >= 12) pool.push('spitter', 'charger')
         for (let i = 0; i < n; i++) spawnQueue.push(pool[Math.floor(Math.random() * pool.length)])
       }
     }
@@ -434,7 +439,10 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     player.xp += z.xp || 0
     coins += z.coin || 0
     if (z.boss) bossKills++
-    if (player.lifesteal) player.hp = Math.min(player.hpMax, player.hp + player.lifesteal)
+    if (player.lifesteal) {
+      const h = Math.min(player.lifesteal, player.healBudget) // 受每秒回血上限約束
+      if (h > 0) { player.hp = Math.min(player.hpMax, player.hp + h); player.healBudget -= h }
+    }
     if (z.kind === 'exploder') explodeAt(z.x, z.y, 82, 30)
     else if (z.kind === 'charger') explodeAt(z.x, z.y, 96, 28, '#ff4d6d')
     else { burst(z.x, z.y, z.boss ? '#ffd23f' : '#a855f7', z.boss ? 28 : 10); sound.kill() }
@@ -476,6 +484,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     // 計時器
     if (player.invincT > 0) player.invincT -= dt
     if (player.rageT > 0) player.rageT -= dt
+    player.healBudget = Math.min(HEAL_CAP, player.healBudget + HEAL_REGEN * dt)
     orbAngle += dt * (player.orbitEvo ? 4.8 : 2.6)
 
     // 計時器：衝刺

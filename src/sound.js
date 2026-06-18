@@ -6,6 +6,12 @@ export class Sound {
     this.killBuf = null
     this.shootBuf = null
     this.master = null
+    this.vol = 1 // 使用者音量（0~1）
+  }
+
+  setVolume(v) {
+    this.vol = Math.max(0, Math.min(1, v))
+    if (this.master) this.master.gain.value = 0.67 * this.vol
   }
 
   ensure() {
@@ -13,7 +19,7 @@ export class Sound {
       const AC = window.AudioContext || window.webkitAudioContext
       this.ctx = new AC()
       this.master = this.ctx.createGain()
-      this.master.gain.value = 0.67 // 整體音量（比原本小 1/3）
+      this.master.gain.value = 0.67 * this.vol // 整體音量（比原本小 1/3）
       this.master.connect(this.ctx.destination)
       this.loadSample('/zombie-die.wav', (b) => { this.killBuf = b })
       this.loadSample('/shoot.wav', (b) => { this.shootBuf = b })
@@ -86,6 +92,8 @@ export class Sound {
   }
   hurt() { this.tone(150, 0.18, 'sawtooth', 0.16, 70) }
   dash() { this.tone(620, 0.16, 'triangle', 0.12, 1100) }
+  levelUp() { this.tone(523, 0.1, 'square', 0.12); this.tone(784, 0.16, 'square', 0.12, 1046) }
+  pickup() { this.tone(880, 0.07, 'triangle', 0.1, 1320) }
   bossSpawn() { this.tone(90, 0.7, 'sawtooth', 0.22, 240) }
   waveStart() { this.tone(520, 0.18, 'triangle', 0.14, 800) }
   gameOver() { this.tone(440, 0.9, 'sine', 0.25, 70) }

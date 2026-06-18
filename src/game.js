@@ -16,8 +16,9 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   const bonus = opts.bonuses || {}
   const char = opts.character || {}
 
-  // 手機震動回饋（不支援則略過）
-  const buzz = (ms) => { try { navigator.vibrate?.(ms) } catch { /* ignore */ } }
+  // 手機震動回饋（可關、不支援則略過）
+  let buzzEnabled = true
+  const buzz = (ms) => { if (buzzEnabled) { try { navigator.vibrate?.(ms) } catch { /* ignore */ } } }
 
   const dogbo = new Image()
   let dogboOk = false
@@ -104,6 +105,8 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     { id: 'knockback', icon: '👊', name: '擊退 +1（子彈推開殭屍）', apply: (p) => { p.knockback += 1 }, capped: (p) => p.knockback >= 3 },
     { id: 'slow', icon: '🕸️', name: '緩速光環（拖慢周圍殭屍）', apply: (p) => { p.slow += 1 }, capped: (p) => p.slow >= 3, weight: 1.2 },
   ]
+
+  const SPECIAL_IDS = new Set(['explosive', 'poison', 'bounce', 'orbit', 'knockback', 'slow', 'crit'])
 
   // 滿級進化：某升級點滿後出現，選了就質變（每種一次、權重高更易出現）
   const EVOLUTIONS = [
@@ -469,6 +472,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   }
 
   function applyPickup(pk) {
+    sound.pickup()
     if (pk.type === 'heart') player.hp = Math.min(player.hpMax, player.hp + 12)
     else if (pk.type === 'coin') coins += 25
     else if (pk.type === 'star') player.invincT = 6
@@ -684,6 +688,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   function startLevelUp() {
     levelingUp = true
     buzz(40)
+    sound.levelUp()
     const avail = [
       ...UPGRADES.filter((u) => !(u.capped && u.capped(player))),
       ...EVOLUTIONS.filter((e) => e.when(player)),
@@ -696,7 +701,8 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       let idx = 0
       for (let i = 0; i < avail.length; i++) { r -= avail[i].weight || 1; if (r <= 0) { idx = i; break } }
       const u = avail.splice(idx, 1)[0]
-      choices.push({ id: u.id, icon: u.icon, name: u.name })
+      const tier = u.id.startsWith('evo_') ? 'evo' : (SPECIAL_IDS.has(u.id) ? 'special' : 'normal')
+      choices.push({ id: u.id, icon: u.icon, name: u.name, tier })
     }
     callbacks.onLevelUp?.(choices)
   }
@@ -980,6 +986,8 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
 
   function setMuted(m) { sound.muted = m }
   function setPaused(p) { paused = p; if (!p) lastTime = performance.now() }
+  function setVolume(v) { sound.setVolume(v) }
+  function setVibrate(on) { buzzEnabled = !!on }
 
-  return { start, stop, setMuted, choose, dash, setPaused }
+  return { start, stop, setMuted, choose, dash, setPaused, setVolume, setVibrate }
 }

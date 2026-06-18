@@ -98,6 +98,12 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; touch-act
   transition: transform 0.05s, box-shadow 0.05s, background 0.1s;
 }
 .upg:active { transform: translate(4px, 4px); box-shadow: 0 0 0 #000; }
+.upg--special { border-color: #22d3ee; }
+.upg--evo {
+  border-color: var(--yellow);
+  background: linear-gradient(160deg, #2a2238, #3a2f12);
+  box-shadow: 4px 4px 0 #000, 0 0 16px rgba(255, 210, 63, 0.55);
+}
 .upg-icon { font-size: clamp(1.7rem, 10cqw, 2.6rem); }
 .upg-name { font-size: clamp(0.72rem, 3.6cqw, 1rem); font-weight: 800; text-align: center; line-height: 1.35; }
 .hud-score { font-size: 1.15rem; color: var(--yellow); }
@@ -123,6 +129,32 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; touch-act
 .char-icon { font-size: 2rem; }
 .char-name { font-size: 0.85rem; font-weight: 800; }
 .char-desc { color: #c9bce0; font-size: 0.85rem; margin: 2px 0 10px; }
+
+/* 設定 */
+.set-row { display: flex; align-items: center; gap: 14px; width: 100%; max-width: 360px; margin: 8px 0; font-weight: 800; }
+.set-row span:first-child { flex: 0 0 96px; text-align: left; }
+.set-row input[type="range"] { flex: 1; accent-color: var(--pink); }
+.set-val { flex: 0 0 46px; text-align: right; color: var(--yellow); }
+.toggle { background: #4a3a6a; color: #fff; padding: 8px 22px; border-radius: 999px; font-weight: 800; }
+.toggle.on { background: var(--pink); }
+
+/* 魔王登場預警 */
+.boss-warn {
+  position: absolute; top: 34%; left: 0; right: 0; text-align: center; z-index: 25;
+  font-size: 2rem; font-weight: 900; color: #ff4d6d;
+  text-shadow: 0 2px 12px #000; pointer-events: none;
+  animation: warnpulse 0.5s ease-in-out infinite alternate;
+}
+@keyframes warnpulse { from { transform: scale(1); opacity: 0.85; } to { transform: scale(1.12); opacity: 1; } }
+
+/* 新手引導 */
+.tut {
+  position: absolute; inset: 0; z-index: 45;
+  background: rgba(20, 16, 31, 0.55);
+  display: flex; align-items: center; justify-content: center; text-align: center;
+}
+.tut p { font-size: 1.2rem; font-weight: 800; line-height: 1.9; color: #fff; text-shadow: 0 2px 8px #000; }
+.tut small { color: #c9bce0; font-weight: 600; }
 
 /* 衝刺按鈕（右下，含冷卻進度環） */
 .dash-btn {

@@ -25,6 +25,29 @@ const characters = CHARACTERS
 const charIdx = ref(Math.min(CHARACTERS.length - 1, Number(localStorage.getItem('as-char')) || 0))
 function selectChar(i) { charIdx.value = i; localStorage.setItem('as-char', String(i)) }
 
+// 設定：音量 + 震動
+const volume = ref(localStorage.getItem('as-vol') !== null ? Number(localStorage.getItem('as-vol')) : 0.8)
+const vibrate = ref(localStorage.getItem('as-vib') !== '0')
+function openSettings() { phase.value = 'settings' }
+watch(volume, (v) => {
+  localStorage.setItem('as-vol', String(v))
+  game?.setVolume(v)
+  if (bgmMenu) bgmMenu.volume = BGM_VOL * v
+  if (bgmGame) bgmGame.volume = BGM_VOL * v
+})
+function toggleVibrate() {
+  vibrate.value = !vibrate.value
+  localStorage.setItem('as-vib', vibrate.value ? '1' : '0')
+  game?.setVibrate(vibrate.value)
+}
+
+// 魔王登場預警
+const bossWarn = ref(false)
+let bossWarnTimer = null
+
+// 新手引導（只第一次）
+const showTut = ref(false)
+
 const hasLeaderboard = !!supabase
 const playerName = ref(localStorage.getItem('as-name') || '')
 const top = ref([])
@@ -86,6 +109,11 @@ function onWaveStart(n, isBoss, bossName, waveLabel) {
       : `第 ${n} 波`
   clearTimeout(bannerTimer)
   bannerTimer = setTimeout(() => (banner.value = ''), 1600)
+  if (isBoss) {
+    bossWarn.value = true
+    clearTimeout(bossWarnTimer)
+    bossWarnTimer = setTimeout(() => (bossWarn.value = false), 1800)
+  }
 }
 
 function onGameOver({ score: s, wave: w, coins, kills, bosses }) {
@@ -114,8 +142,16 @@ function startGame() {
     game?.stop()
     game = createGame(canvas.value, { onStats, onWaveStart, onGameOver, onLevelUp }, { bonuses: bonuses(meta.value), character: characters[charIdx.value].mod })
     game.setMuted(muted.value)
+    game.setVolume(volume.value)
+    game.setVibrate(vibrate.value)
     game.start()
   })
+  // 新手引導：只第一次顯示
+  if (localStorage.getItem('as-tut') !== '1') {
+    showTut.value = true
+    localStorage.setItem('as-tut', '1')
+    setTimeout(() => (showTut.value = false), 5000)
+  }
 }
 
 function backToMenu() {
@@ -196,8 +232,8 @@ const BGM_VOL = 0.4
 let bgmMenu = null
 let bgmGame = null
 function ensureBgm() {
-  if (!bgmMenu) { bgmMenu = new Audio('/bgm-menu.mp3'); bgmMenu.loop = true; bgmMenu.volume = BGM_VOL }
-  if (!bgmGame) { bgmGame = new Audio('/bgm.mp3'); bgmGame.loop = true; bgmGame.volume = BGM_VOL }
+  if (!bgmMenu) { bgmMenu = new Audio('/bgm-menu.mp3'); bgmMenu.loop = true; bgmMenu.volume = BGM_VOL * volume.value }
+  if (!bgmGame) { bgmGame = new Audio('/bgm.mp3'); bgmGame.loop = true; bgmGame.volume = BGM_VOL * volume.value }
 }
 function updateBgm() {
   ensureBgm()
@@ -270,6 +306,14 @@ onUnmounted(() => {
       <!-- combo 連擊 -->
       <transition name="pop"><div v-if="phase === 'playing' && combo >= 3" class="combo">🔥 {{ combo }} 連擊 <span class="combo-mult">×{{ comboMult.toFixed(1) }}</span></div></transition>
 
+      <!-- 魔王登場預警 -->
+      <transition name="pop"><div v-if="phase === 'playing' && bossWarn" class="boss-warn">⚠️ 魔王降臨 ⚠️</div></transition>
+
+      <!-- 新手引導（只第一次） -->
+      <div v-if="phase === 'playing' && showTut" class="tut" @pointerdown="showTut = false">
+        <p>🕹️ 拖曳移動閃殭屍，會自動射擊<br />👟 點右下衝刺閃避 · ⏸ 可暫停<br /><small>(點一下關閉)</small></p>
+      </div>
+
       <!-- 衝刺按鈕（手機拇指可及，電腦也可按；空白鍵亦可） -->
       <button
         v-if="phase === 'playing'"
@@ -292,7 +336,7 @@ onUnmounted(() => {
       <div v-if="levelChoices" class="levelup">
         <h2>⬆️ 升級！選一個強化</h2>
         <div class="upg-cards">
-          <button v-for="c in levelChoices" :key="c.id" class="upg" @click="chooseUpgrade(c)">
+          <button v-for="c in levelChoices" :key="c.id" class="upg" :class="'upg--' + (c.tier || 'normal')" @click="chooseUpgrade(c)">
             <span class="upg-icon">{{ c.icon }}</span>
             <span class="upg-name">{{ c.name }}</span>
           </button>
@@ -346,8 +390,24 @@ onUnmounted(() => {
         <button class="big alt" @click="openShop">🛒 強化</button>
         <button class="big alt" @click="openAch">🏅 成就</button>
         <button v-if="hasLeaderboard" class="big alt" @click="openBoard">🏆 排行榜</button>
+        <button class="big alt" @click="openSettings">⚙️ 設定</button>
         <button class="mute-line" @click="toggleMute">{{ muted ? '🔇 音效關' : '🔊 音效開' }}</button>
         <p class="footer">非官方粉絲應援 · 純為好玩 ❤️<br />音樂：CodeManu (CC-BY 3.0)</p>
+      </div>
+
+      <!-- 設定 -->
+      <div v-if="phase === 'settings'" class="overlay">
+        <h1>⚙️ 設定</h1>
+        <div class="set-row">
+          <span>🔊 音量</span>
+          <input type="range" min="0" max="1" step="0.05" v-model.number="volume" />
+          <span class="set-val">{{ Math.round(volume * 100) }}%</span>
+        </div>
+        <div class="set-row">
+          <span>📳 震動回饋</span>
+          <button class="toggle" :class="{ on: vibrate }" @click="toggleVibrate">{{ vibrate ? '開' : '關' }}</button>
+        </div>
+        <button class="big" @click="phase = 'menu'">返回</button>
       </div>
 
       <!-- 成就 -->

@@ -16,6 +16,8 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   const bonus = opts.bonuses || {}
   const char = opts.character || {}
   const diff = opts.difficulty || { hpMul: 1, dmgMul: 1 }
+  const mode = opts.mode || 'normal'      // normal | bossrush
+  const mod = opts.modifier || {}         // 每日挑戰修正：countMul/speedMul/hpMul/eliteMul
 
   // 手機震動回饋（可關、不支援則略過）
   let buzzEnabled = true
@@ -160,12 +162,13 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
 
   function nextWave() {
     wave++
-    const isBoss = wave % 5 === 0
+    const isBoss = mode === 'bossrush' ? true : wave % 5 === 0
     spawnInterval = Math.max(0.1, 0.48 - wave * 0.045)
     spawnQueue = []
     let bossName = '', waveLabel = ''
     if (isBoss) {
-      const bt = BOSS_TYPES[(wave / 5 - 1) % BOSS_TYPES.length]
+      const bIdx = mode === 'bossrush' ? wave - 1 : wave / 5 - 1
+      const bt = BOSS_TYPES[bIdx % BOSS_TYPES.length]
       pendingBossType = bt.key
       bossName = bt.name
       spawnQueue.push('boss')
@@ -176,7 +179,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       sound.bossSpawn()
       buzz(60)
     } else {
-      const n = Math.round(8 + wave * 3.5)
+      const n = Math.round((8 + wave * 3.5) * (mod.countMul || 1))
       const specials = SPECIAL_WAVES.filter((s) => wave >= s.min)
       if (specials.length && wave >= 3 && Math.random() < 0.45) {
         const sp = specials[Math.floor(Math.random() * specials.length)]
@@ -213,6 +216,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       const bt = BOSS_TYPES.find((b) => b.key === pendingBossType) || BOSS_TYPES[0]
       let bhp = Math.round(2900 + wave * 540 + q * 23)
       if (bt.key === 'charger') bhp = Math.round(bhp * 2) // 衝撞王血量加倍
+      if (mode === 'bossrush') bhp = Math.round(bhp * 0.6) // Boss Rush 每波都是王，降血避免太肝
       zombies.push({ x, y, r: 46, speed: Math.min(135, 60 + wave * 2), hp: bhp, hpMax: bhp, dmg: 85, value: 250, xp: 8, coin: 60, boss: true, kind: 'boss', bossType: bt.key, fireT: 2, cstate: 'chase', t: 0, emoji: bt.emoji, color: bt.color })
       shake(16)
     } else if (type === 'charger') {
@@ -237,12 +241,13 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       const zhp = Math.round(85 + wave * 22 + q * 1.4)
       zombies.push({ x, y, r: 17, speed: Math.min(220, 74 + wave * 5), hp: zhp, hpMax: zhp, dmg: 34, value: 10, xp: 1, coin: 2, kind: 'z', emoji: '🧟' })
     }
-    // 難度調整：敵人血量與傷害
+    // 難度 + 每日挑戰修正：血量、傷害、速度
     const adj = zombies[zombies.length - 1]
-    adj.hp = adj.hpMax = Math.max(1, Math.round(adj.hp * diff.hpMul))
-    adj.dmg = Math.round(adj.dmg * diff.dmgMul)
+    adj.hp = adj.hpMax = Math.max(1, Math.round(adj.hp * diff.hpMul * (mod.hpMul || 1)))
+    adj.dmg = Math.round(adj.dmg * diff.dmgMul * (mod.dmgMul || 1))
+    if (mod.speedMul) adj.speed *= mod.speedMul
     // 菁英怪：隨機強化（更大、血厚、掉更多金幣）
-    if (type !== 'boss' && wave >= 4 && Math.random() < 0.08) {
+    if (type !== 'boss' && wave >= 4 && Math.random() < 0.08 * (mod.eliteMul || 1)) {
       const z = zombies[zombies.length - 1]
       z.elite = true
       z.hp = z.hpMax = Math.round(z.hp * 3.2)

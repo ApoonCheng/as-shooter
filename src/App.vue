@@ -26,6 +26,24 @@ const characters = CHARACTERS
 const charIdx = ref(Math.min(CHARACTERS.length - 1, Number(localStorage.getItem('as-char')) || 0))
 function selectChar(i) { charIdx.value = i; localStorage.setItem('as-char', String(i)) }
 
+// 遊戲模式
+const MODES = [
+  { id: 'normal', name: '🎮 普通' },
+  { id: 'bossrush', name: '👹 Boss Rush' },
+  { id: 'daily', name: '📅 每日挑戰' },
+]
+const modeIdx = ref(Math.min(2, Number(localStorage.getItem('as-mode')) || 0))
+function selectMode(i) { modeIdx.value = i; localStorage.setItem('as-mode', String(i)) }
+// 每日挑戰：依日期決定當天修正（同一天全玩家一致）
+const DAILY_MODS = [
+  { label: '狂暴日 · 敵人變多', countMul: 1.5 },
+  { label: '精英橫行 · 菁英大增', eliteMul: 5 },
+  { label: '高速殭屍 · 移動加快', speedMul: 1.35 },
+  { label: '鋼鐵屍 · 血量加倍', hpMul: 1.7 },
+  { label: '兇殘日 · 傷害提升', dmgMul: 1.4 },
+]
+const dailyMod = DAILY_MODS[Math.floor(Date.now() / 86400000) % DAILY_MODS.length]
+
 // 難度
 const DIFFICULTIES = [
   { id: 'easy', name: '😊 簡單', mod: { hpMul: 0.7, dmgMul: 0.7 } },
@@ -151,7 +169,11 @@ function startGame() {
   // 等 canvas 出現再建立遊戲
   requestAnimationFrame(() => {
     game?.stop()
-    game = createGame(canvas.value, { onStats, onWaveStart, onGameOver, onLevelUp }, { bonuses: bonuses(meta.value), character: characters[charIdx.value].mod, difficulty: DIFFICULTIES[diffIdx.value].mod })
+    const opts = { bonuses: bonuses(meta.value), character: characters[charIdx.value].mod, difficulty: DIFFICULTIES[diffIdx.value].mod }
+    const m = MODES[modeIdx.value]
+    if (m.id === 'bossrush') opts.mode = 'bossrush'
+    else if (m.id === 'daily') opts.modifier = dailyMod
+    game = createGame(canvas.value, { onStats, onWaveStart, onGameOver, onLevelUp }, opts)
     game.setMuted(muted.value)
     game.setVolume(volume.value)
     game.setVibrate(vibrate.value)
@@ -396,6 +418,13 @@ onUnmounted(() => {
         </div>
         <p class="sub" style="margin-top:-8px">🔫 自動瞄準射擊，你只要專心拖曳閃殭屍！升級可三選一強化。<br />💻 電腦：用 WASD / 方向鍵移動</p>
         <div class="coin-bal">💰 {{ meta.coins }}</div>
+        <!-- 模式選擇 -->
+        <div class="char-pick">
+          <button v-for="(m, i) in MODES" :key="m.id" class="char-card diff-card" :class="{ sel: i === modeIdx }" @click="selectMode(i)">
+            <span class="char-name">{{ m.name }}</span>
+          </button>
+        </div>
+        <p v-if="MODES[modeIdx].id === 'daily'" class="char-desc">今日：{{ dailyMod.label }}</p>
         <!-- 角色選擇 -->
         <div class="char-pick">
           <button

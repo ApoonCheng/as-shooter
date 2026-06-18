@@ -37,6 +37,7 @@ export function loadMeta() {
   if (!m.stats || typeof m.stats !== 'object') m.stats = {}
   for (const k of ['kills', 'games', 'bestWave', 'bosses']) m.stats[k] = num(m.stats[k])
   if (!Array.isArray(m.done)) m.done = []
+  if (!Array.isArray(m.unlocked)) m.unlocked = [] // 已解鎖角色 id（第一個角色永遠免費）
   return m
 }
 

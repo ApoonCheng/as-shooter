@@ -24,7 +24,17 @@ const paused = ref(false)
 // 角色選擇
 const characters = CHARACTERS
 const charIdx = ref(Math.min(CHARACTERS.length - 1, Number(localStorage.getItem('as-char')) || 0))
-function selectChar(i) { charIdx.value = i; localStorage.setItem('as-char', String(i)) }
+function isCharUnlocked(i) { return i === 0 || meta.value.unlocked.includes(characters[i].id) }
+function selectChar(i) {
+  if (isCharUnlocked(i)) { charIdx.value = i; localStorage.setItem('as-char', String(i)); return }
+  const c = characters[i]
+  if (meta.value.coins >= c.cost) { // 金幣足夠 → 解鎖
+    meta.value.coins -= c.cost
+    meta.value.unlocked.push(c.id)
+    saveMeta(meta.value)
+    charIdx.value = i; localStorage.setItem('as-char', String(i))
+  }
+}
 
 // 遊戲模式
 const MODES = [
@@ -169,7 +179,8 @@ function startGame() {
   // 等 canvas 出現再建立遊戲
   requestAnimationFrame(() => {
     game?.stop()
-    const opts = { bonuses: bonuses(meta.value), character: characters[charIdx.value].mod, difficulty: DIFFICULTIES[diffIdx.value].mod }
+    const ci = isCharUnlocked(charIdx.value) ? charIdx.value : 0
+    const opts = { bonuses: bonuses(meta.value), character: characters[ci].mod, difficulty: DIFFICULTIES[diffIdx.value].mod }
     const m = MODES[modeIdx.value]
     if (m.id === 'bossrush') opts.mode = 'bossrush'
     else if (m.id === 'daily') opts.modifier = dailyMod
@@ -431,14 +442,18 @@ onUnmounted(() => {
             v-for="(c, i) in characters"
             :key="c.id"
             class="char-card"
-            :class="{ sel: i === charIdx }"
+            :class="{ sel: i === charIdx, locked: !isCharUnlocked(i) }"
             @click="selectChar(i)"
           >
-            <span class="char-icon">{{ c.icon }}</span>
+            <span class="char-icon">{{ isCharUnlocked(i) ? c.icon : '🔒' }}</span>
             <span class="char-name">{{ c.name }}</span>
+            <span v-if="!isCharUnlocked(i)" class="char-cost">💰{{ c.cost }}</span>
           </button>
         </div>
-        <p class="char-desc">{{ characters[charIdx].name }}：{{ characters[charIdx].desc }}</p>
+        <p class="char-desc">
+          {{ characters[charIdx].name }}：{{ characters[charIdx].desc }}
+          <span v-if="!isCharUnlocked(charIdx)"> · 點擊花 💰{{ characters[charIdx].cost }} 解鎖</span>
+        </p>
         <!-- 難度 -->
         <div class="char-pick">
           <button v-for="(d, i) in DIFFICULTIES" :key="d.id" class="char-card diff-card" :class="{ sel: i === diffIdx }" @click="selectDiff(i)">

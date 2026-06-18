@@ -2,9 +2,9 @@ import { Sound } from './sound'
 
 // 可選角色：每個有不同起手流派（mod 在 reset 套用於基礎數值之上）
 export const CHARACTERS = [
-  { id: 'rush', icon: '🎤', name: '主唱', desc: '高速射擊、血量略低', mod: { dmgMul: 1.15, rateMul: 0.85, hpAdd: -20 } },
-  { id: 'tank', icon: '🥁', name: '鼓手', desc: '高血量＋吸血、攻擊稍弱', mod: { hpAdd: 70, dmgMul: 0.9, speedMul: 0.94, lifesteal: 0.5 } },
-  { id: 'poison', icon: '🎸', name: '吉他手', desc: '起手帶毒彈、傷害稍低', mod: { dmgMul: 0.85, rateMul: 0.92, poison: 1 } },
+  { id: 'rush', icon: '🎤', name: '主唱', desc: '高速射擊、血量略低', cost: 0, mod: { dmgMul: 1.15, rateMul: 0.85, hpAdd: -20 } },
+  { id: 'tank', icon: '🥁', name: '鼓手', desc: '高血量＋吸血、攻擊稍弱', cost: 400, mod: { hpAdd: 70, dmgMul: 0.9, speedMul: 0.94, lifesteal: 0.5 } },
+  { id: 'poison', icon: '🎸', name: '吉他手', desc: '起手帶毒彈、傷害稍低', cost: 400, mod: { dmgMul: 0.85, rateMul: 0.92, poison: 1 } },
 ]
 
 // 美秀打殭屍 — 自動瞄準射擊 + 升級養成 + 特殊技能 + 道具掉落
@@ -191,6 +191,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
         if (wave >= 4) pool.push('spitter', 'exploder')
         if (wave >= 5) pool.push('split')
         if (wave >= 6) pool.push('charger', 'tank')
+        if (wave >= 7) pool.push('healer')
         if (wave >= 8) pool.push('spitter', 'spitter') // 後期遠程壓力：逼玩家移動閃彈
         if (wave >= 12) pool.push('spitter', 'charger')
         for (let i = 0; i < n; i++) spawnQueue.push(pool[Math.floor(Math.random() * pool.length)])
@@ -237,6 +238,9 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     } else if (type === 'split') {
       const sphp = Math.round(120 + wave * 20 + q * 1.0)
       zombies.push({ x, y, r: 19, speed: Math.min(150, 70 + wave * 3), hp: sphp, hpMax: sphp, dmg: 30, value: 14, xp: 2, coin: 3, kind: 'split', emoji: '🧟' })
+    } else if (type === 'healer') {
+      const hhp = Math.round(140 + wave * 20 + q * 1.0)
+      zombies.push({ x, y, r: 16, speed: Math.min(150, 70 + wave * 2), hp: hhp, hpMax: hhp, dmg: 18, value: 22, xp: 2, coin: 5, kind: 'healer', healT: 2.6, emoji: '🧟' })
     } else {
       const zhp = Math.round(85 + wave * 22 + q * 1.4)
       zombies.push({ x, y, r: 17, speed: Math.min(220, 74 + wave * 5), hp: zhp, hpMax: zhp, dmg: 34, value: 10, xp: 1, coin: 2, kind: 'z', emoji: '🧟' })
@@ -632,6 +636,17 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
           z.x += z.dvx * dt; z.y += z.dvy * dt; z.t -= dt
           if (d < player.r + z.r || z.t <= 0) { explodeAt(z.x, z.y, 96, 28, '#ff4d6d'); z.dead = true; z.hp = 0 }
         }
+      } else if (z.kind === 'healer') {
+        z.x += Math.cos(a) * z.speed * dt; z.y += Math.sin(a) * z.speed * dt
+        z.healT -= dt
+        if (z.healT <= 0) {
+          z.healT = 2.6
+          for (const o of zombies) {
+            if (o.dead || o === z) continue
+            if (Math.hypot(o.x - z.x, o.y - z.y) < 95) { o.hp = Math.min(o.hpMax, o.hp + o.hpMax * 0.25); burst(o.x, o.y, '#7CFC00', 4) }
+          }
+          burst(z.x, z.y, '#7CFC00', 12)
+        }
       } else if (z.boss) {
         bossAI(z, dt, a, d)
       } else {
@@ -866,6 +881,11 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
         const pulse = z.r + 5 + Math.sin(performance.now() / 180) * 3
         ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 3; ctx.globalAlpha = 0.7
         ctx.beginPath(); ctx.arc(z.x, z.y, pulse, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1
+      }
+      if (z.kind === 'healer') {
+        ctx.strokeStyle = 'rgba(124,252,0,0.55)'; ctx.lineWidth = 2
+        ctx.beginPath(); ctx.arc(z.x, z.y, z.r + 6, 0, Math.PI * 2); ctx.stroke()
+        drawEmoji('➕', z.x, z.y - z.r - 12, 16)
       }
       if (z.boss) {
         // 專屬配色光環（脈動）

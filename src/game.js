@@ -60,6 +60,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   const DASH_SPEED = 900  // 衝刺速度
   const HEAL_CAP = 12     // 吸血回血預算上限（爆發）
   const HEAL_REGEN = 10   // 回血預算每秒回復 → 等於每秒最多回 ~10 HP
+  const ULT_CD = 14       // 大招冷卻（秒）
 
   const BOSS_TYPES = [
     { key: 'volley', name: '彈幕王', emoji: '👹', color: '#c86eff' },
@@ -129,7 +130,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       crit: 0, knockback: 0, slow: 0,
       multiEvo: false, pierceEvo: false, explosiveEvo: false, poisonEvo: false, orbitEvo: false,
       dashCd: 0, dashT: 0, dashDx: 0, dashDy: 0,
-      healBudget: HEAL_CAP,
+      healBudget: HEAL_CAP, ultCd: 0,
       invincT: 0, rageT: 0,
       xp: 0, level: 1, xpNext: 5,
     }
@@ -153,6 +154,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       combo,
       comboMult: 1 + Math.min(1.5, combo * 0.02),
       dashRatio: Math.max(0, Math.min(1, 1 - player.dashCd / DASH_CD)),
+      ultRatio: Math.max(0, Math.min(1, 1 - player.ultCd / ULT_CD)),
     })
   }
 
@@ -184,6 +186,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
         const pool = ['z', 'z', 'fast']
         if (wave >= 3) pool.push('tank', 'fast')
         if (wave >= 4) pool.push('spitter', 'exploder')
+        if (wave >= 5) pool.push('split')
         if (wave >= 6) pool.push('charger', 'tank')
         if (wave >= 8) pool.push('spitter', 'spitter') // 後期遠程壓力：逼玩家移動閃彈
         if (wave >= 12) pool.push('spitter', 'charger')
@@ -227,6 +230,9 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     } else if (type === 'fast') {
       const fhp = Math.round(45 + wave * 12 + q * 0.8)
       zombies.push({ x, y, r: 13, speed: Math.min(340, 143 + wave * 6), hp: fhp, hpMax: fhp, dmg: 38, value: 15, xp: 1, coin: 3, kind: 'fast', emoji: '🧟‍♀️' })
+    } else if (type === 'split') {
+      const sphp = Math.round(120 + wave * 20 + q * 1.0)
+      zombies.push({ x, y, r: 19, speed: Math.min(150, 70 + wave * 3), hp: sphp, hpMax: sphp, dmg: 30, value: 14, xp: 2, coin: 3, kind: 'split', emoji: '🧟' })
     } else {
       const zhp = Math.round(85 + wave * 22 + q * 1.4)
       zombies.push({ x, y, r: 17, speed: Math.min(220, 74 + wave * 5), hp: zhp, hpMax: zhp, dmg: 34, value: 10, xp: 1, coin: 2, kind: 'z', emoji: '🧟' })
@@ -360,6 +366,25 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     buzz(15)
   }
 
+  // 大招：檳榔風暴 — 全場轟炸 + 擊退 + 清掉敵彈
+  function ult() {
+    if (!running || levelingUp || paused) return
+    if (player.ultCd > 0) return
+    player.ultCd = ULT_CD
+    shake(22)
+    burst(player.x, player.y, '#ffd23f', 44)
+    sound.bossSpawn()
+    buzz(80)
+    const dmg = 500 + wave * 30
+    for (const z of zombies) {
+      if (z.dead) continue
+      burst(z.x, z.y, '#ffd23f', 6)
+      applyKnock(z, Math.atan2(z.y - player.y, z.x - player.x), 300)
+      hurtZombie(z, z.boss ? dmg * 0.45 : dmg)
+    }
+    ebullets.length = 0 // 清空場上敵彈
+  }
+
   function spitAt(z) {
     const a = Math.atan2(player.y - z.y, player.x - z.x)
     const sp = 265
@@ -414,26 +439,30 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
 
   function bossAI(z, dt, a, d) {
     const cos = Math.cos(a), sin = Math.sin(a)
+    // 二階段：血量過半進入狂暴 → 射速加快、移動變快
+    if (!z.enraged && z.hp < z.hpMax * 0.5) { z.enraged = true; shake(14); burst(z.x, z.y, z.color || '#ff4d6d', 30) }
+    const rf = z.enraged ? 0.6 : 1   // 射擊間隔倍率（越小越快）
+    const sm = z.enraged ? 1.25 : 1  // 移動速度倍率
     z.fireT -= dt
     if (z.bossType === 'spiral') {
-      z.x += cos * z.speed * 0.55 * dt; z.y += sin * z.speed * 0.55 * dt
-      if (z.fireT <= 0) { z.fireT = 0.16; bossSpiral(z) }
+      z.x += cos * z.speed * 0.55 * sm * dt; z.y += sin * z.speed * 0.55 * sm * dt
+      if (z.fireT <= 0) { z.fireT = 0.16 * rf; bossSpiral(z) }
     } else if (z.bossType === 'blink') {
-      z.x += cos * z.speed * 0.8 * dt; z.y += sin * z.speed * 0.8 * dt
-      if (z.fireT <= 0) { z.fireT = 1.8; bossBlink(z) }
+      z.x += cos * z.speed * 0.8 * sm * dt; z.y += sin * z.speed * 0.8 * sm * dt
+      if (z.fireT <= 0) { z.fireT = 1.8 * rf; bossBlink(z) }
     } else if (z.bossType === 'summon') {
-      z.x += cos * z.speed * 0.7 * dt; z.y += sin * z.speed * 0.7 * dt
-      if (z.fireT <= 0) { z.fireT = 2.2; bossSummon(z) }
+      z.x += cos * z.speed * 0.7 * sm * dt; z.y += sin * z.speed * 0.7 * sm * dt
+      if (z.fireT <= 0) { z.fireT = 2.2 * rf; bossSummon(z) }
     } else if (z.bossType === 'ring') {
-      z.x += cos * z.speed * 0.7 * dt; z.y += sin * z.speed * 0.7 * dt
-      if (z.fireT <= 0) { z.fireT = 1.3; bossRing(z) }
+      z.x += cos * z.speed * 0.7 * sm * dt; z.y += sin * z.speed * 0.7 * sm * dt
+      if (z.fireT <= 0) { z.fireT = 1.3 * rf; bossRing(z) }
     } else if (z.bossType === 'charger') {
-      if (z.cstate === 'chase') { z.x += cos * z.speed * dt; z.y += sin * z.speed * dt; if (d < 340) { z.cstate = 'windup'; z.t = 0.6 } }
+      if (z.cstate === 'chase') { z.x += cos * z.speed * sm * dt; z.y += sin * z.speed * sm * dt; if (d < 340) { z.cstate = 'windup'; z.t = 0.6 * rf } }
       else if (z.cstate === 'windup') { z.t -= dt; if (z.t <= 0) { z.cstate = 'dash'; z.t = 0.7; z.dvx = cos * 640; z.dvy = sin * 640 } }
       else { z.x += z.dvx * dt; z.y += z.dvy * dt; z.t -= dt; if (z.t <= 0) z.cstate = 'chase' }
     } else {
-      z.x += cos * z.speed * dt; z.y += sin * z.speed * dt
-      if (z.fireT <= 0) { z.fireT = 1.4; bossVolley(z) }
+      z.x += cos * z.speed * sm * dt; z.y += sin * z.speed * sm * dt
+      if (z.fireT <= 0) { z.fireT = 1.4 * rf; bossVolley(z) }
     }
   }
 
@@ -456,6 +485,13 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
     else { burst(z.x, z.y, z.boss ? '#ffd23f' : '#a855f7', z.boss ? 28 : 10); sound.kill() }
     if (z.boss) shake(18)
     if (player.poison && z.poisonT > 0) spreadPoison(z)
+    // 分裂殭屍：死後裂成兩隻小怪
+    if (z.kind === 'split') {
+      for (let i = 0; i < 2; i++) {
+        const ca = Math.random() * Math.PI * 2
+        zombies.push({ x: z.x + Math.cos(ca) * 12, y: z.y + Math.sin(ca) * 12, r: 12, speed: Math.min(300, 150 + wave * 4), hp: 45, hpMax: 45, dmg: 22, value: 5, xp: 1, coin: 1, kind: 'z', emoji: '🧟' })
+      }
+    }
     rollDrop(z)
   }
 
@@ -498,6 +534,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
 
     // 計時器：衝刺
     if (player.dashCd > 0) player.dashCd -= dt
+    if (player.ultCd > 0) player.ultCd -= dt
     hurtFlash = Math.max(0, hurtFlash - dt * 3)
     if (comboTimer > 0) { comboTimer -= dt; if (comboTimer <= 0) combo = 0 }
     for (const f of floaters) { f.y += f.vy * dt; f.vy += 80 * dt; f.life -= dt }
@@ -731,7 +768,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
 
   // 畫敵人：sprite 預設朝上，旋轉成面向玩家；未載入則用 emoji 後備
   function drawEnemy(z) {
-    const img = (z.boss && enemyImgs['boss_' + z.bossType]) || enemyImgs[z.kind]
+    const img = (z.boss && enemyImgs['boss_' + z.bossType]) || enemyImgs[z.kind] || enemyImgs['z']
     if (img && img.complete && img.naturalWidth) {
       const fa = Math.atan2(player.y - z.y, player.x - z.x)
       const h = z.r * 2.6
@@ -957,6 +994,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   const onKeyDown = (e) => {
     keys[e.key.toLowerCase()] = true
     if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); dash() }
+    if (e.key.toLowerCase() === 'e') { e.preventDefault(); ult() }
   }
   const onKeyUp = (e) => { keys[e.key.toLowerCase()] = false }
   const onPointerDown = (e) => {
@@ -994,5 +1032,5 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   function setVolume(v) { sound.setVolume(v) }
   function setVibrate(on) { buzzEnabled = !!on }
 
-  return { start, stop, setMuted, choose, dash, setPaused, setVolume, setVibrate }
+  return { start, stop, setMuted, choose, dash, ult, setPaused, setVolume, setVibrate }
 }

@@ -18,6 +18,7 @@ const muted = ref(false)
 const combo = ref(0)
 const comboMult = ref(1)
 const dashRatio = ref(1)
+const ultRatio = ref(1)
 const paused = ref(false)
 
 // 角色選擇
@@ -99,6 +100,7 @@ function onStats(s) {
   combo.value = fin(s.combo)
   comboMult.value = fin(s.comboMult, 1)
   dashRatio.value = fin(s.dashRatio, 1)
+  ultRatio.value = fin(s.ultRatio, 1)
 }
 
 function onLevelUp(choices) {
@@ -177,6 +179,10 @@ function togglePause() {
 
 function doDash() {
   game?.dash()
+}
+
+function doUlt() {
+  game?.ult()
 }
 
 function openBoard() {
@@ -320,7 +326,7 @@ onUnmounted(() => {
 
       <!-- 新手引導（只第一次） -->
       <div v-if="phase === 'playing' && showTut" class="tut" @pointerdown="showTut = false">
-        <p>🕹️ 拖曳移動閃殭屍，會自動射擊<br />👟 點右下衝刺閃避 · ⏸ 可暫停<br /><small>(點一下關閉)</small></p>
+        <p>🕹️ 拖曳移動閃殭屍，會自動射擊<br />👟 右下衝刺 · 💥 左下大招 · ⏸ 暫停<br /><small>(點一下關閉)</small></p>
       </div>
 
       <!-- 衝刺按鈕（手機拇指可及，電腦也可按；空白鍵亦可） -->
@@ -331,6 +337,15 @@ onUnmounted(() => {
         :style="{ '--p': dashRatio }"
         @pointerdown.prevent="doDash"
       >👟</button>
+
+      <!-- 大招按鈕（左下，CD 制；電腦 E 鍵） -->
+      <button
+        v-if="phase === 'playing'"
+        class="ult-btn"
+        :class="{ ready: ultRatio >= 1 }"
+        :style="{ '--p': ultRatio }"
+        @pointerdown.prevent="doUlt"
+      >💥</button>
 
       <transition name="pop"><div v-if="banner" class="banner">{{ banner }}</div></transition>
 

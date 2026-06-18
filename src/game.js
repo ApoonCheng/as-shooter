@@ -15,6 +15,7 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
   const sound = new Sound()
   const bonus = opts.bonuses || {}
   const char = opts.character || {}
+  const diff = opts.difficulty || { hpMul: 1, dmgMul: 1 }
 
   // 手機震動回饋（可關、不支援則略過）
   let buzzEnabled = true
@@ -230,6 +231,10 @@ export function createGame(canvas, callbacks = {}, opts = {}) {
       const zhp = Math.round(85 + wave * 22 + q * 1.4)
       zombies.push({ x, y, r: 17, speed: Math.min(220, 74 + wave * 5), hp: zhp, hpMax: zhp, dmg: 34, value: 10, xp: 1, coin: 2, kind: 'z', emoji: '🧟' })
     }
+    // 難度調整：敵人血量與傷害
+    const adj = zombies[zombies.length - 1]
+    adj.hp = adj.hpMax = Math.max(1, Math.round(adj.hp * diff.hpMul))
+    adj.dmg = Math.round(adj.dmg * diff.dmgMul)
     // 菁英怪：隨機強化（更大、血厚、掉更多金幣）
     if (type !== 'boss' && wave >= 4 && Math.random() < 0.08) {
       const z = zombies[zombies.length - 1]

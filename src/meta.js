@@ -19,6 +19,10 @@ export const ACHIEVEMENTS = [
   { id: 'boss1', icon: '👹', name: '屠王', desc: '擊殺 1 隻殭屍王', stat: 'bosses', goal: 1, reward: 150 },
   { id: 'boss10', icon: '👹', name: '王者收割', desc: '累積擊殺 10 隻殭屍王', stat: 'bosses', goal: 10, reward: 600 },
   { id: 'games10', icon: '🎮', name: '樂此不疲', desc: '遊玩 10 場', stat: 'games', goal: 10, reward: 200 },
+  { id: 'kill10000', icon: '🧟', name: '殭屍末日', desc: '累積擊殺 10000 隻', stat: 'kills', goal: 10000, reward: 3000 },
+  { id: 'wave30', icon: '🌊', name: '不死傳說', desc: '單局撐到第 30 波', stat: 'bestWave', goal: 30, reward: 1500 },
+  { id: 'boss25', icon: '👹', name: '弒王者', desc: '累積擊殺 25 隻殭屍王', stat: 'bosses', goal: 25, reward: 1200 },
+  { id: 'games50', icon: '🎮', name: '骨灰玩家', desc: '遊玩 50 場', stat: 'games', goal: 50, reward: 800 },
 ]
 
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0)

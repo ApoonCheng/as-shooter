@@ -25,6 +25,15 @@ const characters = CHARACTERS
 const charIdx = ref(Math.min(CHARACTERS.length - 1, Number(localStorage.getItem('as-char')) || 0))
 function selectChar(i) { charIdx.value = i; localStorage.setItem('as-char', String(i)) }
 
+// 難度
+const DIFFICULTIES = [
+  { id: 'easy', name: '😊 簡單', mod: { hpMul: 0.7, dmgMul: 0.7 } },
+  { id: 'normal', name: '😎 普通', mod: { hpMul: 1, dmgMul: 1 } },
+  { id: 'hard', name: '💀 困難', mod: { hpMul: 1.5, dmgMul: 1.35 } },
+]
+const diffIdx = ref(Math.min(2, Number(localStorage.getItem('as-diff') ?? 1)))
+function selectDiff(i) { diffIdx.value = i; localStorage.setItem('as-diff', String(i)) }
+
 // 設定：音量 + 震動
 const volume = ref(localStorage.getItem('as-vol') !== null ? Number(localStorage.getItem('as-vol')) : 0.8)
 const vibrate = ref(localStorage.getItem('as-vib') !== '0')
@@ -140,7 +149,7 @@ function startGame() {
   // 等 canvas 出現再建立遊戲
   requestAnimationFrame(() => {
     game?.stop()
-    game = createGame(canvas.value, { onStats, onWaveStart, onGameOver, onLevelUp }, { bonuses: bonuses(meta.value), character: characters[charIdx.value].mod })
+    game = createGame(canvas.value, { onStats, onWaveStart, onGameOver, onLevelUp }, { bonuses: bonuses(meta.value), character: characters[charIdx.value].mod, difficulty: DIFFICULTIES[diffIdx.value].mod })
     game.setMuted(muted.value)
     game.setVolume(volume.value)
     game.setVibrate(vibrate.value)
@@ -386,13 +395,34 @@ onUnmounted(() => {
           </button>
         </div>
         <p class="char-desc">{{ characters[charIdx].name }}：{{ characters[charIdx].desc }}</p>
+        <!-- 難度 -->
+        <div class="char-pick">
+          <button v-for="(d, i) in DIFFICULTIES" :key="d.id" class="char-card diff-card" :class="{ sel: i === diffIdx }" @click="selectDiff(i)">
+            <span class="char-name">{{ d.name }}</span>
+          </button>
+        </div>
         <button class="big" @click="startGame">開始遊戲</button>
         <button class="big alt" @click="openShop">🛒 強化</button>
         <button class="big alt" @click="openAch">🏅 成就</button>
         <button v-if="hasLeaderboard" class="big alt" @click="openBoard">🏆 排行榜</button>
         <button class="big alt" @click="openSettings">⚙️ 設定</button>
+        <button class="big alt" @click="phase = 'stats'">📊 統計</button>
         <button class="mute-line" @click="toggleMute">{{ muted ? '🔇 音效關' : '🔊 音效開' }}</button>
         <p class="footer">非官方粉絲應援 · 純為好玩 ❤️<br />音樂：CodeManu (CC-BY 3.0)</p>
+      </div>
+
+      <!-- 統計 -->
+      <div v-if="phase === 'stats'" class="overlay">
+        <h1>📊 統計</h1>
+        <div class="stats-grid">
+          <div class="stat-cell"><div class="stat-num">{{ meta.stats.kills }}</div><div class="stat-lbl">總擊殺</div></div>
+          <div class="stat-cell"><div class="stat-num">{{ meta.stats.bosses }}</div><div class="stat-lbl">擊殺魔王</div></div>
+          <div class="stat-cell"><div class="stat-num">{{ meta.stats.bestWave }}</div><div class="stat-lbl">最高波數</div></div>
+          <div class="stat-cell"><div class="stat-num">{{ meta.stats.games }}</div><div class="stat-lbl">遊玩場數</div></div>
+          <div class="stat-cell"><div class="stat-num">{{ meta.done.length }}/{{ achievements.length }}</div><div class="stat-lbl">成就</div></div>
+          <div class="stat-cell"><div class="stat-num">💰{{ meta.coins }}</div><div class="stat-lbl">金幣</div></div>
+        </div>
+        <button class="big" @click="phase = 'menu'">返回</button>
       </div>
 
       <!-- 設定 -->
